@@ -1,0 +1,3 @@
+# Personal Claude Code overrides and local state stay out of the repository.
+settings.local.json
+worktrees/

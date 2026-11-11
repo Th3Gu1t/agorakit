@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(vendor/bin/phpunit)",
+      "Bash(vendor/bin/phpunit *)",
+      "Bash(vendor/bin/phpcs *)",
+      "Bash(vendor/bin/phpstan *)",
+      "Bash(composer test)",
+      "Bash(composer test-unit)",
+      "Bash(composer test-int)",
+      "Bash(composer test-e2e)",
+      "Bash(composer scan)",
+      "Bash(.github/fork/check-commits.sh)",
+      "Bash(.github/fork/check-commits.sh *)"
+    ],
+    "deny": [
+      "Bash(git push upstream)",
+      "Bash(git push upstream *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-.}\"/.claude/hooks/guard-upstream.sh",
+            "timeout": 15,
+            "statusMessage": "Checking that nothing is written upstream"
+          }
+        ]
+      }
+    ]
+  }
+}
