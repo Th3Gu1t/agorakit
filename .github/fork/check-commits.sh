@@ -7,6 +7,12 @@
 #   3. A commit touches either fork-only paths (.github/fork/fork-only-paths)
 #      or application paths, never both, and has the scope "fork" if and only
 #      if it touches fork-only paths.
+#   4. The message does not link to an issue or a pull request with
+#      "owner/repo#12" or a GitHub URL: for an upstream item, GitHub would post
+#      a visible backlink there. An application commit does not use "#12"
+#      either: once proposed upstream, the number would point at an unrelated
+#      upstream issue. The link belongs in the pull request description.
+#      Fork-only commits never leave the fork and may use "#12".
 #
 # Usage:
 #   check-commits.sh [<base> [<head>]]         check the commits of a branch
@@ -24,6 +30,8 @@ readonly TYPES='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
 readonly SUBJECT_RE="^(${TYPES})(\(([a-z0-9][a-z0-9._/-]*)\))?!?: [^[:space:]].*$"
 readonly MAX_SUBJECT=72
 readonly FORK_SCOPE='fork'
+readonly LINK_RE='[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+|github\.com/[^[:space:]]+/(issues|pull)/[0-9]+'
+readonly ISSUE_NUMBER_RE='(^|[^A-Za-z0-9&])#[0-9]+'
 
 root=$(git rev-parse --show-toplevel)
 readonly PATHS_FILE="$root/.github/fork/fork-only-paths"
@@ -91,7 +99,7 @@ check_paths() {
 
 # Checks a whole message ($1) against the changed paths read on stdin.
 check_message() {
-    local message=$1 subject rest status=0
+    local message=$1 subject rest scope status=0
     subject=${message%%$'\n'*}
     check_subject "$subject" || status=1
     if [[ $message == *$'\n'* ]]; then
@@ -101,7 +109,15 @@ check_message() {
             status=1
         fi
     fi
-    check_paths "$(scope_of "$subject")" || status=1
+    scope=$(scope_of "$subject")
+    if [[ $message =~ $LINK_RE ]]; then
+        echo "  it links to an issue or a pull request (owner/repo#N or a URL): write the number in plain text"
+        status=1
+    elif [[ $scope != "$FORK_SCOPE" && $message =~ $ISSUE_NUMBER_RE ]]; then
+        echo "  it references an issue (#N): upstream, that number means something else; keep it in the pull request description"
+        status=1
+    fi
+    check_paths "$scope" || status=1
     return $status
 }
 

@@ -21,6 +21,10 @@ decision from the maintainer.
   then a pull request against the `main` branch of the fork.
 - **Name the target of every GitHub write**: `gh ... --repo Th3Gu1t/agorakit`.
   In a fork the GitHub CLI can default to the parent repository.
+- **Do not link to upstream issues, pull requests or commits** from the
+  issues, pull requests or commit messages of the fork: no
+  `agorakit/agorakit#123`, no URL. GitHub posts a visible backlink on the
+  upstream item. Write "upstream issue 123" in plain text.
 - **The maintainer merges.** Never merge a pull request, push to `main`, or
   change repository settings and branch protections without being asked to.
 - **AGPL-3.0**: everything derived from this code stays under AGPL-3.0, and
@@ -78,15 +82,20 @@ commit, and commits are the unit that may be proposed upstream.
   `calendar`, `groups`, `files`, `i18n`, ...
 - Never mix a functional change with reformatting, coding-standard fixes or CI
   changes.
+- No issue number (`#12`) in the message of an application commit: once
+  proposed upstream, `#12` would point at an unrelated upstream issue. The
+  pull request description carries `Closes #12`. Fork-only commits never
+  leave the fork and may reference its issues.
 - Commits are GPG-signed (configured on the development machine). Do not
   bypass signing or hooks.
-- Fix a commit of the current branch with `git commit --fixup` and
-  `git rebase --autosquash` before review, not with "fix review" commits.
-  Never rewrite `main`.
+- Never rewrite `main`. Rewriting a pull request branch (`commit --fixup`,
+  `rebase --autosquash`, `push --force-with-lease`) keeps its history clean
+  but replaces commits the maintainer may have read: do it only with their
+  go-ahead. Without it, add a follow-up commit that stands on its own.
 
-`.github/fork/check-commits.sh` checks the format, the fork-only separation
-and the scope; CI also checks signatures and the pull request title, which
-becomes the subject of the merge commit.
+`.github/fork/check-commits.sh` checks the format, the fork-only separation,
+the scope and the absence of issue references; CI also checks signatures and
+the pull request title, which becomes the subject of the merge commit.
 
 ## Languages
 
