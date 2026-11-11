@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#
+# Git commit-msg hook: immediate feedback on the commit rules of the fork.
+# Enabled by .github/fork/setup-clone.sh; the CI runs the same checks on
+# every pull request, so this hook is a convenience, not the gate.
+
+exec "$(git rev-parse --show-toplevel)/.github/fork/check-commits.sh" --commit-msg "$1"
