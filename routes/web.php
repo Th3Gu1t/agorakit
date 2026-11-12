@@ -256,6 +256,7 @@ Route::group(['middleware' => ['web']], function () {
         // Votes held in a discussion
         Route::get('discussions/{discussion}/polls/create', 'PollController@create')->name('.discussions.polls.create');
         Route::post('discussions/{discussion}/polls', 'PollController@store')->name('.discussions.polls.store');
+        Route::post('discussions/{discussion}/polls/{poll}/vote', 'PollController@vote')->name('.discussions.polls.vote');
 
         // Events
         Route::get('calendarevents', 'GroupCalendarEventController@index')->name('.calendarevents.index');

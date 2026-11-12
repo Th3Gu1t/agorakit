@@ -1,6 +1,6 @@
 {{-- Votes of a discussion, and the button to start one. Needs $group and $discussion. --}}
 <div class="polls mb-4">
-    @foreach ($discussion->polls as $poll)
+    @foreach ($discussion->polls->load(['user', 'options', 'votes.user', 'votes.option']) as $poll)
         @include('polls.poll')
     @endforeach
 

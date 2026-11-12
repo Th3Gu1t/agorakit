@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Discussion;
 use App\Group;
 use App\Poll;
+use App\PollVote;
 use Auth;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -98,6 +99,39 @@ class PollController extends Controller
     }
 
     /**
+     * Record the vote of the current member, replacing their previous one.
+     */
+    public function vote(Request $request, Group $group, Discussion $discussion, Poll $poll)
+    {
+        $this->checkPoll($group, $discussion, $poll);
+        $this->authorize('vote', $poll);
+
+        if (!$poll->isOpen()) {
+            warning(__('This vote is closed.'));
+            return $this->showPoll($group, $discussion, $poll);
+        }
+
+        $request->validate([
+            'option' => ['required', Rule::exists('poll_options', 'id')->where('poll_id', $poll->id)],
+            'reason' => ['nullable', 'string', 'max:5000'],
+        ], [
+            'option.required' => __('Choose an option to vote.'),
+        ]);
+
+        // One statement, so that a double submission cannot create two votes.
+        PollVote::upsert([[
+            'poll_id' => $poll->id,
+            'user_id' => Auth::id(),
+            'poll_option_id' => (int) $request->input('option'),
+            'reason' => $request->filled('reason') ? $request->input('reason') : null,
+        ]], ['poll_id', 'user_id'], ['poll_option_id', 'reason', 'updated_at']);
+
+        flash(__('Your vote is recorded.'));
+
+        return $this->showPoll($group, $discussion, $poll);
+    }
+
+    /**
      * Options of a proposal: fixed, translated at display time.
      */
     private function proposalOptions(bool $allowBlock): array
@@ -167,6 +201,15 @@ class PollController extends Controller
     private function checkDiscussion(Group $group, Discussion $discussion): void
     {
         abort_unless((int) $discussion->group_id === (int) $group->id, 404);
+    }
+
+    /**
+     * Refuses a poll reached through another discussion or another group.
+     */
+    private function checkPoll(Group $group, Discussion $discussion, Poll $poll): void
+    {
+        $this->checkDiscussion($group, $discussion);
+        abort_unless((int) $poll->discussion_id === (int) $discussion->id, 404);
     }
 
     /**

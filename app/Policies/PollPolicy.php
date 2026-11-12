@@ -26,4 +26,12 @@ class PollPolicy extends BasePolicy
         return !$discussion->isArchived()
             && $this->getPermissionsFor($user, $discussion->group)->contains('create-discussion');
     }
+
+    /**
+     * Every member of the group has a vote.
+     */
+    public function vote(User $user, Poll $poll)
+    {
+        return $user->isMemberOf($poll->discussion->group);
+    }
 }

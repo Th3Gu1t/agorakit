@@ -6,6 +6,7 @@ use App\Discussion;
 use App\Group;
 use App\Membership;
 use App\Poll;
+use App\PollVote;
 use App\User;
 use Carbon\Carbon;
 
@@ -68,6 +69,42 @@ class PollTest extends BaseTest
         }
 
         return $poll->fresh();
+    }
+
+    /**
+     * A new discussion of the voting group holding a single proposal, so that
+     * its page has one vote form only.
+     */
+    private function discussionWithProposal(string $question): Poll
+    {
+        $discussion = new Discussion(['name' => 'About: ' . $question, 'body' => 'Let us decide.']);
+        $discussion->user()->associate($this->user('alice'));
+        $discussion->group()->associate($this->group());
+        $discussion->save();
+
+        $poll = new Poll(['type' => Poll::PROPOSAL, 'question' => $question]);
+        $poll->user()->associate($this->user('alice'));
+        $discussion->polls()->save($poll);
+        foreach (Poll::PROPOSAL_OPTIONS as $position => $key) {
+            $poll->options()->create(['key' => $key, 'position' => $position]);
+        }
+
+        return $poll->fresh();
+    }
+
+    private function showPath(Poll $poll): string
+    {
+        return route('groups.discussions.show', [$this->group(), $poll->discussion]);
+    }
+
+    private function votePath(Poll $poll): string
+    {
+        return route('groups.discussions.polls.vote', [$this->group(), $poll->discussion, $poll]);
+    }
+
+    private function option(Poll $poll, string $key): int
+    {
+        return $poll->options->firstWhere('key', $key)->id;
     }
 
     public function testSetUpTheVotingGroup()
@@ -272,6 +309,120 @@ class PollTest extends BaseTest
             $discussion->unArchive();
             $discussion->save();
         }
+    }
+
+    public function testMemberVotesWithAReason()
+    {
+        $poll = $this->discussionWithProposal('We meet every month');
+
+        $this->actingAs($this->user('bob'))
+            ->visit($this->showPath($poll))
+            ->see(__('Your vote'))
+            ->select($this->option($poll, 'agree'), 'option')
+            ->type('It keeps us in touch.', 'reason')
+            ->press(__('Vote'))
+            ->see(__('Your vote is recorded.'))
+            ->see(trans_choice(':count vote|:count votes', 1) . ' · 100 %')
+            ->see(__(':voted of :members members voted', ['voted' => 1, 'members' => 4]))
+            ->see('It keeps us in touch.')
+            ->see(__('Change my vote'));
+
+        $vote = PollVote::where('poll_id', $poll->id)->firstOrFail();
+        $this->assertSame('bob@agorakit.local', $vote->user->email);
+        $this->assertSame('agree', $vote->option->key);
+    }
+
+    public function testMemberChangesTheirVote()
+    {
+        $poll = $this->discussionWithProposal('We meet every week');
+        $this->actingAs($this->user('bob'))
+            ->post($this->votePath($poll), ['option' => $this->option($poll, 'agree'), 'reason' => 'Why not.']);
+
+        $this->actingAs($this->user('bob'))
+            ->visit($this->showPath($poll))
+            ->seeIsSelected('option', (string) $this->option($poll, 'agree'))
+            ->seeInField('reason', 'Why not.')
+            ->select($this->option($poll, 'disagree'), 'option')
+            ->type('', 'reason')
+            ->press(__('Change my vote'));
+
+        $votes = PollVote::where('poll_id', $poll->id)->get();
+        $this->assertCount(1, $votes);
+        $this->assertSame('disagree', $votes->first()->option->key);
+        $this->assertNull($votes->first()->reason);
+    }
+
+    public function testResultsCountEveryVote()
+    {
+        $poll = $this->discussionWithProposal('We open on Sundays');
+        foreach (['alice' => 'agree', 'bob' => 'agree', 'carol' => 'disagree'] as $name => $key) {
+            $this->actingAs($this->user($name))->post($this->votePath($poll), ['option' => $this->option($poll, $key)]);
+        }
+
+        $this->actingAs($this->user('erin'))
+            ->visit($this->showPath($poll))
+            ->see(trans_choice(':count vote|:count votes', 2) . ' · 67 %')
+            ->see(trans_choice(':count vote|:count votes', 1) . ' · 33 %')
+            ->see(__(':voted of :members members voted', ['voted' => 3, 'members' => 4]))
+            ->see(__('Not voted yet') . ' (1)');
+    }
+
+    public function testNonMemberCannotVote()
+    {
+        $poll = $this->discussionWithProposal('Outsiders vote too');
+
+        $this->actingAs($this->user('dave'))
+            ->post($this->votePath($poll), ['option' => $this->option($poll, 'agree')])
+            ->assertResponseStatus(403);
+
+        $this->actingAs($this->user('dave'))
+            ->visit($this->showPath($poll))
+            ->dontSee(__('Your vote'))
+            ->dontSee(__('Not voted yet'));
+
+        $this->assertSame(0, PollVote::where('poll_id', $poll->id)->count());
+    }
+
+    public function testOptionMustBelongToThePoll()
+    {
+        $poll = $this->discussionWithProposal('Options of another poll');
+        $other = $this->discussionWithProposal('Another poll');
+
+        $this->actingAs($this->user('bob'))
+            ->post($this->votePath($poll), ['option' => $this->option($other, 'agree')]);
+
+        $this->assertSame(0, PollVote::where('poll_id', $poll->id)->count());
+        $this->assertSame(0, PollVote::where('poll_id', $other->id)->count());
+    }
+
+    public function testPollMustBelongToTheDiscussion()
+    {
+        $poll = $this->discussionWithProposal('Reached through another discussion');
+        $other = $this->discussionWithProposal('The other discussion');
+
+        $this->actingAs($this->user('bob'))
+            ->post(
+                route('groups.discussions.polls.vote', [$this->group(), $other->discussion, $poll]),
+                ['option' => $this->option($poll, 'agree')]
+            )
+            ->assertResponseStatus(404);
+
+        $this->assertSame(0, PollVote::where('poll_id', $poll->id)->count());
+    }
+
+    public function testNoVoteOnAClosedPoll()
+    {
+        $poll = $this->discussionWithProposal('Too late to vote');
+        $poll->close();
+
+        $this->actingAs($this->user('bob'))
+            ->post($this->votePath($poll), ['option' => $this->option($poll, 'agree')]);
+        $this->assertSame(0, PollVote::where('poll_id', $poll->id)->count());
+
+        $this->actingAs($this->user('bob'))
+            ->visit($this->showPath($poll))
+            ->see(__('Vote closed'))
+            ->dontSee(__('Your vote'));
     }
 
     public function testProposalOptionsAreTranslated()
