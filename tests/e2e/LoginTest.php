@@ -77,6 +77,39 @@ class LoginTest extends BaseTest
         return $this->loginLinkSentTo($email);
     }
 
+    public function testSignInPageLeadsToLoginLinkMode()
+    {
+        $this->visit('/login')
+            ->seeElement('input[name="password"]')
+            ->click(__('Link by email'))
+            ->seePageIs(route('loginbyemail'))
+            ->seeElement('input[name="email"]')
+            ->dontSeeElement('input[name="password"]');
+    }
+
+    public function testLoginLinkModeLeadsBackToPasswordMode()
+    {
+        $this->visit('/login/email')
+            ->click(trans('messages.password'))
+            ->seePageIs(route('login'))
+            ->seeElement('input[name="password"]');
+    }
+
+    public function testBothSignInModesOfferToRegister()
+    {
+        $this->visit('/login')
+            ->seeLink(__('Click here to register a new account'), route('register'));
+
+        $this->visit('/login/email')
+            ->seeLink(__('Click here to register a new account'), route('register'));
+    }
+
+    public function testSignInModesAreTranslated()
+    {
+        $this->visit('/login?force_locale=fr')
+            ->seeLink('Lien par email', route('loginbyemail'));
+    }
+
     public function testPasswordSignIn()
     {
         $this->visit('/login')
@@ -344,7 +377,6 @@ class LoginTest extends BaseTest
         Mail::fake();
 
         $this->visit('/login/email')
-            ->see('Send me a login link by email')
             ->type(self::ADMIN_EMAIL, 'email')
             ->press(__('Send me the link'))
             ->see('we sent you a login link. It will expire in 30 minutes');
@@ -357,7 +389,8 @@ class LoginTest extends BaseTest
         Mail::fake();
 
         $this->visit('/login/email?force_locale=fr')
-            ->see('Recevoir un lien de connexion par email')
+            ->see('Lien par email')
+            ->see('Pas besoin de mot de passe')
             ->type(self::ADMIN_EMAIL, 'email')
             ->press('Envoie-moi le lien')
             ->see('nous vous avons envoyé un lien de connexion');
