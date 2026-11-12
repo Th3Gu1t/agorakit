@@ -82,7 +82,7 @@ class LoginTest extends BaseTest
         $this->visit('/login')
             ->seeElement('input[name="password"]')
             ->click(__('Link by email'))
-            ->seePageIs(route('loginbyemail'))
+            ->seePageIs('/login/email')
             ->seeElement('input[name="email"]')
             ->dontSeeElement('input[name="password"]');
     }
@@ -91,7 +91,7 @@ class LoginTest extends BaseTest
     {
         $this->visit('/login/email')
             ->click(trans('messages.password'))
-            ->seePageIs(route('login'))
+            ->seePageIs('/login')
             ->seeElement('input[name="password"]');
     }
 

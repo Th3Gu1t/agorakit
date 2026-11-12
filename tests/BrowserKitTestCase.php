@@ -21,7 +21,9 @@ abstract class BrowserKitTestCase extends TestCase
      */
     public function createApplication()
     {
-        $this->baseUrl = getenv('TESTING_APP_URL', 'http://localhost');
+        // The second argument of getenv() is not a default value: without the
+        // variable it returns false, and the base URL used to end up empty.
+        $this->baseUrl = getenv('TESTING_APP_URL') ?: 'http://localhost';
 
         $app = require __DIR__ . '/../bootstrap/app.php';
         $app->make(Kernel::class)->bootstrap();
