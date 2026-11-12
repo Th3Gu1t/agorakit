@@ -62,7 +62,8 @@ so the change stays proposable.
 4. **Before pushing**: run the tests and `.github/fork/check-commits.sh`.
 5. **Pull request** against `main` of the fork, following the template, with
    `Closes #<issue>`. Open it as a draft while it is not ready.
-6. **CI** must be green: `PHP Composer` (tests) and `Fork checks` (commits).
+6. **CI** must be green: `PHP Composer` (tests) and `Fork checks` (commits
+   and coding standard).
 7. The maintainer reviews and merges, with a merge commit.
 
 ## Commits
@@ -163,7 +164,7 @@ Day to day:
 vendor/bin/phpunit                          # everything, under a minute
 vendor/bin/phpunit tests/e2e/UserTest.php   # one file
 composer test-unit                          # also test-int, test-e2e
-vendor/bin/phpcs --standard=PSR12 <files>   # coding standard on changed files
+composer lint                               # coding standard (PSR-12)
 composer scan                               # PHPStan, level 0
 .github/fork/check-commits.sh               # commits of the branch against origin/main
 ```
@@ -175,8 +176,8 @@ Things to know:
   tests rely on the users and groups created by earlier ones (see the helpers
   in `tests/BaseTest.php`). A new end-to-end file must be added to the `E2E`
   suite in `phpunit.xml`, where order matters.
-- `composer lint` does not work on `main`: `phpcs.xml.dist` is not valid XML.
-  Call `phpcs` directly as shown above.
+- `composer lint` passes on `main` and CI runs it: keep it that way. Fix the
+  lines you write; do not reformat code you do not otherwise change.
 - `composer scan` reports known errors on `main`, tied to the optional IMAP
   package. Do not add new ones.
 
