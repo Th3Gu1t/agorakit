@@ -8,9 +8,8 @@ use App\Providers\RouteServiceProvider;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Foundation\Auth\ThrottlesLogins;
 use App\User;
-use Mail;
 use Auth;
-use App\Mail\LoginByEmail;
+use App\Services\LoginLinkService;
 
 class LoginController extends Controller
 {
@@ -43,7 +42,7 @@ class LoginController extends Controller
         $this->middleware('guest')->except('logout');
     }
 
-    public function login(Request $request)
+    public function login(Request $request, LoginLinkService $loginLinks)
     {
         // decide if attempt is made with an email or a username
         $login = request()->input('login');
@@ -55,8 +54,13 @@ class LoginController extends Controller
         // check if password is not filled
         if (empty($request->input('password'))) {
             if ($user) {
-                // send login link by email
-                Mail::to($user->email)->send(new LoginByEmail($user));
+                // send login link by email, unless too many were sent recently
+                if (!$loginLinks->send($user, $request->ip())) {
+                    warning(__(
+                        'Too many login links were requested. Use a link you already received, or try again later.'
+                    ));
+                    return $this->backToLoginForm($request);
+                }
                 flash(__('Check your mailbox, we sent you a login link. It will expires in 30 minutes'));
                 return redirect('/');
             } else {

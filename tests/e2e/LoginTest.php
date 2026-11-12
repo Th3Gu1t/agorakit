@@ -3,10 +3,12 @@
 namespace Tests;
 
 use App\Mail\LoginByEmail;
+use App\Services\LoginLinkService;
 use App\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Sign-in scenarios: with a password, and with a login link received by email.
@@ -20,6 +22,8 @@ class LoginTest extends BaseTest
     // A translation key: its misspelling is kept so that existing translations still match.
     private const LINK_SENT = 'Check your mailbox, we sent you a login link. It will expires in 30 minutes';
     private const DELETED_EMAIL = 'deleted@agorakit.local';
+    private const TOO_MANY_LINKS = 'Too many login links were requested. '
+        . 'Use a link you already received, or try again later.';
 
     protected function tearDown(): void
     {
@@ -210,6 +214,75 @@ class LoginTest extends BaseTest
         $this->post('/login/email', ['email' => self::DELETED_EMAIL]);
 
         $this->assertStringContainsString('/autologin?', $this->loginLinkSentTo(self::DELETED_EMAIL));
+    }
+
+    public function testLoginLinksAreLimitedPerAccount()
+    {
+        Mail::fake();
+
+        for ($i = 0; $i < LoginLinkService::MAX_PER_ACCOUNT; $i++) {
+            $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => '']);
+        }
+        Mail::assertSent(LoginByEmail::class, LoginLinkService::MAX_PER_ACCOUNT);
+
+        $this->visit('/login')
+            ->type(self::ADMIN_EMAIL, 'login')
+            ->press(trans('messages.login'))
+            ->see(__(self::TOO_MANY_LINKS))
+            ->seeInField('login', self::ADMIN_EMAIL);
+
+        // The dedicated form shares the same limit.
+        $this->visit('/login/email')
+            ->type(self::ADMIN_EMAIL, 'email')
+            ->press(__('Send me the link'))
+            ->see(__(self::TOO_MANY_LINKS));
+
+        Mail::assertSent(LoginByEmail::class, LoginLinkService::MAX_PER_ACCOUNT);
+    }
+
+    public function testLoginLinksAreLimitedPerAddress()
+    {
+        Mail::fake();
+        for ($i = 0; $i < LoginLinkService::MAX_PER_ADDRESS; $i++) {
+            RateLimiter::hit(LoginLinkService::addressKey('127.0.0.1'), LoginLinkService::WINDOW_SECONDS);
+        }
+
+        $this->visit('/login')
+            ->type(self::ADMIN_EMAIL, 'login')
+            ->press(trans('messages.login'))
+            ->see(__(self::TOO_MANY_LINKS));
+
+        Mail::assertNothingSent();
+    }
+
+    public function testLoginLinkLimitExpires()
+    {
+        Mail::fake();
+        for ($i = 0; $i <= LoginLinkService::MAX_PER_ACCOUNT; $i++) {
+            $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => '']);
+        }
+        Mail::assertSent(LoginByEmail::class, LoginLinkService::MAX_PER_ACCOUNT);
+
+        Carbon::setTestNow(Carbon::now()->addSeconds(LoginLinkService::WINDOW_SECONDS + 1));
+        try {
+            $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => '']);
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        Mail::assertSent(LoginByEmail::class, LoginLinkService::MAX_PER_ACCOUNT + 1);
+    }
+
+    public function testPasswordSignInIgnoresLoginLinkLimit()
+    {
+        Mail::fake();
+        for ($i = 0; $i <= LoginLinkService::MAX_PER_ACCOUNT; $i++) {
+            $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => '']);
+        }
+
+        $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => self::ADMIN_PASSWORD]);
+
+        $this->assertSame(self::ADMIN_EMAIL, Auth::user()->email);
     }
 
     public function testLoginByEmailFormSendsLoginLink()
