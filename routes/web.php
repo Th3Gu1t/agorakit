@@ -253,6 +253,10 @@ Route::group(['middleware' => ['web']], function () {
         Route::get('discussions/{discussion}/comments/{comment}/history', 'CommentController@history')->name('.discussions.comments.history');
         Route::get('discussions/{discussion}/live/{comment}', 'CommentController@live')->name('.discussions.live');
 
+        // Votes held in a discussion
+        Route::get('discussions/{discussion}/polls/create', 'PollController@create')->name('.discussions.polls.create');
+        Route::post('discussions/{discussion}/polls', 'PollController@store')->name('.discussions.polls.store');
+
         // Events
         Route::get('calendarevents', 'GroupCalendarEventController@index')->name('.calendarevents.index');
         Route::get('calendarevents/create', 'GroupCalendarEventController@create')->name('.calendarevents.create');

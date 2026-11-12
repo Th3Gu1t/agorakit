@@ -57,6 +57,8 @@
             </div>
         </div>
 
+        @include('polls.list')
+
         <div class="comments">
             @foreach ($discussion->comments as $comment_key => $comment)
                 {{-- {{$comment_key}} / {{$read_count}} / {{$total_count}} --}}

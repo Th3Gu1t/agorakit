@@ -136,6 +136,144 @@ class PollTest extends BaseTest
         $this->assertCount(4, $poll->nonVoters());
     }
 
+    private function createPath(): string
+    {
+        return route('groups.discussions.polls.create', [$this->group(), $this->discussion()]);
+    }
+
+    public function testMemberStartsAProposal()
+    {
+        $this->actingAs($this->user('alice'))
+            ->visit(route('groups.discussions.show', [$this->group(), $this->discussion()]))
+            ->click(__('Start a vote'))
+            ->seePageIs($this->createPath())
+            ->select('proposal', 'type')
+            ->type('We buy a laser printer', 'question')
+            ->type('About 300 euros.', 'body')
+            ->type('', 'closes_at_date')
+            ->press(__('Start the vote'))
+            ->see(__('The vote is open.'))
+            ->see('We buy a laser printer')
+            ->see('About 300 euros.')
+            ->see(__('No closing date'));
+
+        $poll = Poll::where('question', 'We buy a laser printer')->firstOrFail();
+        $this->assertSame(Poll::PROPOSAL, $poll->type);
+        $this->assertSame('alice@agorakit.local', $poll->user->email);
+        $this->assertSame(Poll::PROPOSAL_OPTIONS, $poll->options->pluck('key')->all());
+        $this->assertNull($poll->closes_at);
+    }
+
+    public function testProposalMayAllowBlocking()
+    {
+        $this->actingAs($this->user('alice'))
+            ->visit($this->createPath())
+            ->select('proposal', 'type')
+            ->type('We change the statutes', 'question')
+            ->check('allow_block')
+            ->press(__('Start the vote'));
+
+        $poll = Poll::where('question', 'We change the statutes')->firstOrFail();
+        $this->assertSame(['agree', 'abstain', 'disagree', 'block'], $poll->options->pluck('key')->all());
+    }
+
+    public function testMemberStartsAChoiceWithAClosingDate()
+    {
+        $date = Carbon::now()->addDays(3);
+
+        $this->actingAs($this->user('alice'))
+            ->visit($this->createPath())
+            ->select('choice', 'type')
+            ->type('Which printer?', 'question')
+            ->type("Laser\n\n  Inkjet  \nlaser\nThermal", 'options')
+            ->type($date->format('Y-m-d'), 'closes_at_date')
+            ->type('18:30', 'closes_at_time')
+            ->press(__('Start the vote'))
+            ->see('Which printer?')
+            ->see('Inkjet');
+
+        $poll = Poll::where('question', 'Which printer?')->firstOrFail();
+        $this->assertSame(Poll::CHOICE, $poll->type);
+        // blank lines and a repeat (any case) are left out, the order is kept
+        $this->assertSame(['Laser', 'Inkjet', 'Thermal'], $poll->options->pluck('label')->all());
+        $this->assertSame($date->format('Y-m-d') . ' 18:30', $poll->closes_at->format('Y-m-d H:i'));
+    }
+
+    public function testChoiceNeedsTwoOptions()
+    {
+        $this->actingAs($this->user('alice'))
+            ->visit($this->createPath())
+            ->select('choice', 'type')
+            ->type('Only one way?', 'question')
+            ->type("Yes\nyes", 'options')
+            ->press(__('Start the vote'))
+            ->see(__('A choice needs at least two different options, one per line.'))
+            ->seeInField('question', 'Only one way?');
+
+        $this->assertFalse(Poll::where('question', 'Only one way?')->exists());
+    }
+
+    public function testClosingDateMustBeInTheFuture()
+    {
+        $this->actingAs($this->user('alice'))
+            ->visit($this->createPath())
+            ->select('proposal', 'type')
+            ->type('Back to the past', 'question')
+            ->type(Carbon::now()->subDay()->format('Y-m-d'), 'closes_at_date')
+            ->press(__('Start the vote'))
+            ->see(__('The closing date must be in the future.'));
+
+        $this->assertFalse(Poll::where('question', 'Back to the past')->exists());
+    }
+
+    public function testNonMemberCannotStartAVote()
+    {
+        $this->actingAs($this->user('dave'))
+            ->get($this->createPath())
+            ->assertResponseStatus(403);
+
+        $this->actingAs($this->user('dave'))
+            ->post(route('groups.discussions.polls.store', [$this->group(), $this->discussion()]), [
+                'type' => 'proposal',
+                'question' => 'Intruder proposal',
+            ])
+            ->assertResponseStatus(403);
+
+        $this->assertFalse(Poll::where('question', 'Intruder proposal')->exists());
+    }
+
+    public function testNonMemberDoesNotSeeTheButton()
+    {
+        $this->actingAs($this->user('dave'))
+            ->visit(route('groups.discussions.show', [$this->group(), $this->discussion()]))
+            ->dontSee(__('Start a vote'));
+    }
+
+    public function testDiscussionMustBelongToTheGroup()
+    {
+        $otherGroup = $this->getTestGroup();
+
+        $this->actingAs($this->user('alice'))
+            ->get(route('groups.discussions.polls.create', [$otherGroup, $this->discussion()]))
+            ->assertResponseStatus(404);
+    }
+
+    public function testNoVoteInAnArchivedDiscussion()
+    {
+        $discussion = $this->discussion();
+        $discussion->archive();
+        $discussion->save();
+
+        try {
+            $this->actingAs($this->user('alice'))
+                ->get($this->createPath())
+                ->assertResponseStatus(403);
+        } finally {
+            $discussion->unArchive();
+            $discussion->save();
+        }
+    }
+
     public function testProposalOptionsAreTranslated()
     {
         $poll = $this->createPoll('Translated options?');
