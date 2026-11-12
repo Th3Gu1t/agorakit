@@ -1,7 +1,8 @@
 name: Fork checks
 
 # Rules that only exist in this fork: commit format, separation between
-# fork-only files and application code, signed commits. See CLAUDE.md.
+# fork-only files and application code, signed commits, coding standard.
+# See CLAUDE.md.
 
 on:
   pull_request:
@@ -56,3 +57,26 @@ jobs:
           fi
         done
         exit $status
+
+  # The upstream workflow runs the tests only; the coding standard was not
+  # checked anywhere.
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+
+    - uses: actions/checkout@v4
+
+    - name: Copy .env
+      run: php -r "file_exists('.env') || copy('.env.ci', '.env');"
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Check the coding standard
+      run: composer lint

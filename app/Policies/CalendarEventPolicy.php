@@ -9,7 +9,7 @@ use Illuminate\Auth\Access\HandlesAuthorization;
 class CalendarEventPolicy extends BasePolicy
 {
     use HandlesAuthorization;
-    
+
     /**
      * Determine whether the user can view the event.
      *

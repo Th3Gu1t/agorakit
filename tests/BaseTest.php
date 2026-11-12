@@ -1,14 +1,14 @@
 <?php
 
 namespace Tests;
-use App;
 
+use App;
 
 class BaseTest extends BrowserKitTestCase
 {
     /* Some utility function*/
 
-     public function admin()
+    public function admin()
     {
         return App\User::where('email', 'admin@agorakit.local')->firstOrFail();
     }

@@ -76,8 +76,7 @@ class LoginController extends Controller
 
             if ($user) {
                 // restore user if it was deleted, even if password is not correct
-                if ($user->trashed())
-                {
+                if ($user->trashed()) {
                     $user->restore();
                 }
 

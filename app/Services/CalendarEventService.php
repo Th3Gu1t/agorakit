@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Collection;
 
 class CalendarEventService
 {
-
     /**
      * Converts a CalendarEvent to a json representation that can be understood by fullcalendar JS
      */
