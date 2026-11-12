@@ -3,6 +3,7 @@
 namespace App;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -60,6 +61,37 @@ class Poll extends Model
     public function votes(): HasMany
     {
         return $this->hasMany(PollVote::class);
+    }
+
+    /**
+     * Polls still open, as isOpen() tells for one poll.
+     */
+    public function scopeOpen(Builder $query): Builder
+    {
+        return $query->whereNull('closed_at')
+            ->where(function (Builder $query) {
+                $query->whereNull('closes_at')->orWhere('closes_at', '>', Carbon::now());
+            });
+    }
+
+    /**
+     * Polls held in the discussions of a group, deleted discussions left out.
+     */
+    public function scopeInGroup(Builder $query, Group $group): Builder
+    {
+        return $query->whereHas('discussion', function (Builder $query) use ($group) {
+            $query->where('group_id', $group->id)->whereNull('deleted_at');
+        });
+    }
+
+    /**
+     * Polls this user has not answered yet.
+     */
+    public function scopeWithoutVoteOf(Builder $query, User $user): Builder
+    {
+        return $query->whereDoesntHave('votes', function (Builder $query) use ($user) {
+            $query->where('user_id', $user->id);
+        });
     }
 
     public function isProposal(): bool

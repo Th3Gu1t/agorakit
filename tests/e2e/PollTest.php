@@ -4,12 +4,15 @@ namespace Tests;
 
 use App\Discussion;
 use App\Group;
+use App\Mail\Notification as SummaryMail;
 use App\Membership;
 use App\Notifications\PollCreated;
 use App\Poll;
 use App\PollVote;
 use App\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 
 /**
@@ -597,6 +600,92 @@ class PollTest extends BaseTest
         $this->assertStringContainsString('#poll-' . $poll->id, $mail->actionUrl);
         $this->assertContains('What does the email say?', $mail->introLines);
         $this->assertContains(__('Closes on :date', ['date' => $poll->closes_at->isoFormat('LLL')]), $mail->introLines);
+    }
+
+    /**
+     * Sets when this member last received the summary of the voting group.
+     */
+    private function setLastSummary(string $name, $date): void
+    {
+        Membership::where('group_id', $this->group()->id)
+            ->where('user_id', $this->user($name)->id)
+            ->update(['notified_at' => $date]);
+    }
+
+    /**
+     * The summary of the voting group sent to this member by the last run, if any.
+     */
+    private function summarySentTo(string $name): ?SummaryMail
+    {
+        $sent = Mail::sent(SummaryMail::class, function (SummaryMail $mail) use ($name) {
+            return $mail->hasTo($this->user($name)->email) && $mail->group->is($this->group());
+        });
+
+        return $sent->first();
+    }
+
+    public function testSummaryListsVotesWaitingForTheMember()
+    {
+        $answered = $this->discussionWithProposal('Summary: already answered');
+        $closed = $this->discussionWithProposal('Summary: already closed');
+        $waiting = $this->discussionWithProposal('Summary: still waiting');
+        $this->actingAs($this->user('bob'))->post($this->votePath($answered), ['option' => $this->option($answered, 'agree')]);
+        $closed->close();
+
+        $this->setLastSummary('bob', '2001-01-01 00:00:00');
+        Mail::fake();
+        Artisan::call('agorakit:sendnotifications --env=testing');
+
+        $summary = $this->summarySentTo('bob');
+        $this->assertNotNull($summary);
+        $this->assertTrue($summary->polls->contains('id', $waiting->id));
+        $this->assertFalse($summary->polls->contains('id', $answered->id));
+        $this->assertFalse($summary->polls->contains('id', $closed->id));
+
+        $html = $summary->render();
+        $this->assertStringContainsString(__('Votes waiting for you'), $html);
+        $this->assertStringContainsString('Summary: still waiting', $html);
+        $this->assertStringContainsString('#poll-' . $waiting->id, $html);
+    }
+
+    public function testNewVoteAloneTriggersASummary()
+    {
+        $start = Carbon::now();
+        $this->setLastSummary('carol', $start->copy()->subMinute()->toDateTimeString());
+
+        // nothing new in the group but a vote, started after carol's last summary
+        $poll = new Poll(['type' => Poll::PROPOSAL, 'question' => 'Summary: a new vote alone']);
+        $poll->user()->associate($this->user('alice'));
+        $this->discussion()->polls()->save($poll);
+
+        Carbon::setTestNow($start->copy()->addHours(2));
+        Mail::fake();
+        try {
+            Artisan::call('agorakit:sendnotifications --env=testing');
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $summary = $this->summarySentTo('carol');
+        $this->assertNotNull($summary);
+        $this->assertTrue($summary->polls->contains('id', $poll->id));
+    }
+
+    public function testOldVoteAloneDoesNotTriggerASummary()
+    {
+        // every vote of the group was started before erin's last summary
+        $start = Carbon::now();
+        $this->setLastSummary('erin', $start->copy()->addMinute()->toDateTimeString());
+
+        Carbon::setTestNow($start->copy()->addHours(2));
+        Mail::fake();
+        try {
+            Artisan::call('agorakit:sendnotifications --env=testing');
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $this->assertNull($this->summarySentTo('erin'));
     }
 
     public function testProposalOptionsAreTranslated()

@@ -15,6 +15,7 @@ class Notification extends Mailable
     public $group;
     public $membership;
     public $discussions;
+    public $polls;
     public $files;
     public $users;
     public $events;
@@ -27,7 +28,8 @@ class Notification extends Mailable
      */
     public function __construct()
     {
-        //
+        // open votes waiting for the member, none unless the sender sets them
+        $this->polls = collect();
     }
 
     /**

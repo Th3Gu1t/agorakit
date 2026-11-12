@@ -142,6 +142,12 @@ class SendNotifications extends Command
                 ->where('group_id', '=', $group->id)
                 ->count();
 
+            // open votes of the group this member has not answered yet: every summary lists them as a reminder,
+            // and a vote started since the last summary is a reason to send one
+            $pollsQuery = \App\Poll::open()->inGroup($group)->withoutVoteOf($user);
+            $polls_count = (clone $pollsQuery)->where('created_at', '>', $membership->notified_at)->count();
+            $polls = $pollsQuery->with('discussion')->orderByRaw('closes_at is null')->orderBy('closes_at')->get();
+
             // in all cases update timestamp
             $membership->notified_at = Carbon::now()->toDateTimeString();
             $membership->save();
@@ -150,13 +156,14 @@ class SendNotifications extends Command
             // removed that : or count($users) > 0
             // because we don't want to be notified just because there is a new member
 
-            if (count($discussions) > 0 or count($files) > 0 or ($events_count > 0)) {
+            if (count($discussions) > 0 or count($files) > 0 or ($events_count > 0) or ($polls_count > 0)) {
                 $notification = new Notification();
 
                 $notification->user = $user;
                 $notification->group = $group;
                 $notification->membership = $membership;
                 $notification->discussions = $discussions;
+                $notification->polls = $polls;
 
                 $notification->files = $files;
                 $notification->users = $users;
