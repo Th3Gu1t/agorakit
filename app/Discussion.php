@@ -142,6 +142,14 @@ class Discussion extends Model
         }
     }
 
+    /**
+     * Votes held in this discussion, oldest first.
+     */
+    public function polls(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Poll::class)->orderBy('created_at')->orderBy('id');
+    }
+
     public function reactions()
     {
         return $this->morphMany(Reaction::class, 'reactable');
