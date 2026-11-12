@@ -22,6 +22,7 @@ use Carbon\Carbon;
 class PollTest extends BaseTest
 {
     private const GROUP = 'Voting group';
+    private const NEIGHBOUR_GROUP = 'Neighbour group';
     private const DISCUSSION = 'Should we buy a printer?';
 
     private function user(string $name): User
@@ -121,6 +122,11 @@ class PollTest extends BaseTest
             Membership::create(['group_id' => $group->id, 'user_id' => $this->user($name)->id, 'membership' => Membership::MEMBER]);
         }
         Membership::create(['group_id' => $group->id, 'user_id' => $this->user('erin')->id, 'membership' => Membership::ADMIN]);
+
+        $neighbour = new Group();
+        $neighbour->name = self::NEIGHBOUR_GROUP;
+        $neighbour->body = 'Another group, to reach discussions through the wrong group';
+        $neighbour->save();
 
         $discussion = new Discussion(['name' => self::DISCUSSION, 'body' => 'Our printer is broken.']);
         $discussion->user()->associate($this->user('alice'));
@@ -288,7 +294,7 @@ class PollTest extends BaseTest
 
     public function testDiscussionMustBelongToTheGroup()
     {
-        $otherGroup = $this->getTestGroup();
+        $otherGroup = Group::where('name', self::NEIGHBOUR_GROUP)->firstOrFail();
 
         $this->actingAs($this->user('alice'))
             ->get(route('groups.discussions.polls.create', [$otherGroup, $this->discussion()]))
