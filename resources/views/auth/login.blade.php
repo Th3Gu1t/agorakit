@@ -9,6 +9,8 @@
 
     </h1>
 
+    @include('partials.tabs.login', ['tab' => 'password'])
+
     <form action="{{ url('/login') }}" class="mb-5" method="POST">
 
         @csrf
