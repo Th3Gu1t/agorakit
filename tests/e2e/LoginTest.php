@@ -3,6 +3,7 @@
 namespace Tests;
 
 use App\Mail\LoginByEmail;
+use App\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -17,6 +18,29 @@ class LoginTest extends BaseTest
     private const ADMIN_EMAIL = 'admin@agorakit.local';
     private const ADMIN_PASSWORD = '123456789';
     private const LINK_SENT = 'Check your mailbox, we sent you a login link. It will expires in 30 minutes';
+    private const DELETED_EMAIL = 'deleted@agorakit.local';
+
+    protected function tearDown(): void
+    {
+        User::withTrashed()->where('email', self::DELETED_EMAIL)->forceDelete();
+
+        parent::tearDown();
+    }
+
+    /**
+     * Creates an account marked for deletion.
+     */
+    private function deletedUser(): User
+    {
+        $user = User::create([
+            'name' => 'Deleted',
+            'email' => self::DELETED_EMAIL,
+            'password' => bcrypt('irrelevant'),
+        ]);
+        $user->delete();
+
+        return $user;
+    }
 
     /**
      * Returns the login link found in the email sent to this address.
@@ -163,6 +187,28 @@ class LoginTest extends BaseTest
         }
 
         $this->assertTrue(Auth::guest());
+    }
+
+    public function testLoginLinkReactivatesDeletedAccount()
+    {
+        $this->deletedUser();
+        Mail::fake();
+        $link = $this->requestLoginLink(self::DELETED_EMAIL, self::DELETED_EMAIL);
+
+        $this->get($link)->assertRedirectedTo('/');
+
+        $this->assertSame(self::DELETED_EMAIL, Auth::user()->email);
+        $this->assertFalse(User::withTrashed()->where('email', self::DELETED_EMAIL)->first()->trashed());
+    }
+
+    public function testLoginByEmailFormAlsoServesDeletedAccount()
+    {
+        $this->deletedUser();
+        Mail::fake();
+
+        $this->post('/login/email', ['email' => self::DELETED_EMAIL]);
+
+        $this->assertStringContainsString('/autologin?', $this->loginLinkSentTo(self::DELETED_EMAIL));
     }
 
     public function testLoginByEmailFormSendsLoginLink()

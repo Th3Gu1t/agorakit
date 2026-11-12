@@ -24,7 +24,8 @@ class LoginByEmailController extends Controller
 
     public function sendLoginByEmail(Request $request)
     {
-        $user = User::where('email', trim($request->get('email')))->first();
+        // find user, even if it was deleted, like the sign-in form does
+        $user = User::where('email', trim($request->get('email')))->withTrashed()->first();
 
         if ($user) {
             // send invitation email
