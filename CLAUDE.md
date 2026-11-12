@@ -141,12 +141,37 @@ the pull request title, which becomes the subject of the merge commit.
 - E-mail: mailables in `app/Mail`, Markdown views in `resources/views/emails`.
 - Console commands in `app/Console/Commands` (`agorakit:*`), scheduled in
   `app/Console/Kernel.php`.
-- Sign-in lives in `app/Http/Controllers/Auth`. A login link by e-mail already
-  exists: an empty password on `/login`, or `/login/email`, sends a signed
-  link handled by `AutoLoginController`.
+- Sign-in lives in `app/Http/Controllers/Auth`. Two tabs on `/login` offer a
+  password or a login link by e-mail (`/login/email`, also sent when the
+  password is left empty), handled by `AutoLoginController`.
+  `LoginLinkService` limits how many links are sent.
 
 Upstream documentation: <https://docs.agorakit.org> (source in
 `agorakit/agorakit-docs`).
+
+## Features of this fork
+
+Application code that only exists here. Keep each feature in files of its
+own and touch upstream files as little as possible: every line changed in an
+upstream file can conflict at the next sync.
+
+- **Votes in discussions** (fork issues 20, 21 and 22), in the manner of
+  Loomio: a proposal (in favour, abstain, against, optionally block) or a
+  choice between free options, an optional closing date, one vote per member
+  with an optional reason, secret votes, the decision taken once closed.
+  - Own files: `app/Poll.php`, `app/PollOption.php`, `app/PollVote.php`,
+    `app/Http/Controllers/PollController.php`, `app/Policies/PollPolicy.php`,
+    `app/Notifications/PollCreated.php`, `resources/views/polls/`, the
+    migrations `2026_11_12_*_polls*`, `tests/e2e/PollTest.php`.
+  - Upstream files touched, a few lines each: `app/Discussion.php`
+    (`polls()`), `app/Providers/AuthServiceProvider.php`, `routes/web.php`,
+    `app/Listeners/NotifyInstantly.php`,
+    `app/Console/Commands/SendNotifications.php`, `app/Mail/Notification.php`,
+    the views `discussions/show`, `discussions/discussion` and
+    `emails/notification`, `phpunit.xml`, `resources/lang/{en,fr}.json`.
+  - Who starts a vote follows the group permission `create-discussion`;
+    every member votes. A poll is always checked against its discussion and
+    group (`PollController::checkPoll`).
 
 ## Commands
 
@@ -184,7 +209,11 @@ Things to know:
   independent tests. `UserTest::testSetupItAll` runs `migrate:fresh`, and later
   tests rely on the users and groups created by earlier ones (see the helpers
   in `tests/BaseTest.php`). A new end-to-end file must be added to the `E2E`
-  suite in `phpunit.xml`, where order matters.
+  suite in `phpunit.xml`, where order matters. A file run on its own works
+  once after a full run; run it twice and it finds its own data from the
+  first run. Run the whole suite to be sure.
+- `vendor/bin/phpunit | tail` hides the exit code of PHPUnit: check the
+  summary line, or redirect to a file and read `$?`.
 - `composer lint` passes on `main` and CI runs it: keep it that way. Fix the
   lines you write; do not reformat code you do not otherwise change.
 - `composer scan` reports known errors on `main`, tied to the optional IMAP
