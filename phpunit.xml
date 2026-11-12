@@ -12,6 +12,7 @@
     <testsuites>
         <testsuite name="E2E">
             <file>./tests/e2e/UserTest.php</file>
+            <file>./tests/e2e/LoginTest.php</file>
             <file>./tests/e2e/FileUploadTest.php</file>
             <file>./tests/e2e/CalendarEventTest.php</file>
             <file>./tests/e2e/ImportTest.php</file>
