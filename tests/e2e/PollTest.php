@@ -425,6 +425,92 @@ class PollTest extends BaseTest
             ->dontSee(__('Your vote'));
     }
 
+    private function closePath(Poll $poll): string
+    {
+        return route('groups.discussions.polls.close', [$this->group(), $poll->discussion, $poll]);
+    }
+
+    public function testAuthorClosesTheVote()
+    {
+        $poll = $this->discussionWithProposal('Closed by its author');
+
+        $this->actingAs($this->user('alice'))
+            ->visit($this->showPath($poll))
+            ->press(__('Close the vote'))
+            ->see(__('The vote is closed.'))
+            ->see(__('Vote closed'))
+            ->dontSee(__('Close the vote'))
+            ->dontSee(__('Your vote'));
+
+        $this->assertFalse($poll->fresh()->isOpen());
+    }
+
+    public function testGroupAdminClosesTheVote()
+    {
+        $poll = $this->discussionWithProposal('Closed by an admin');
+
+        $this->actingAs($this->user('erin'))
+            ->visit($this->showPath($poll))
+            ->press(__('Close the vote'));
+
+        $this->assertFalse($poll->fresh()->isOpen());
+    }
+
+    public function testOtherMembersCannotCloseTheVote()
+    {
+        $poll = $this->discussionWithProposal('Not closed by others');
+
+        $this->actingAs($this->user('bob'))
+            ->visit($this->showPath($poll))
+            ->dontSee(__('Close the vote'));
+
+        foreach (['bob', 'dave'] as $name) {
+            $this->actingAs($this->user($name))
+                ->post($this->closePath($poll))
+                ->assertResponseStatus(403);
+        }
+
+        $this->assertTrue($poll->fresh()->isOpen());
+    }
+
+    public function testClosingTwiceKeepsTheFirstDate()
+    {
+        $poll = $this->discussionWithProposal('Closed once only');
+        $poll->close();
+        $closedAt = $poll->fresh()->closed_at;
+
+        Carbon::setTestNow(Carbon::now()->addHour());
+        try {
+            $this->actingAs($this->user('alice'))->post($this->closePath($poll));
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $this->assertEquals($closedAt, $poll->fresh()->closed_at);
+    }
+
+    public function testVoteClosesByItselfAtItsClosingDate()
+    {
+        $poll = $this->discussionWithProposal('Closes on a date');
+        $poll->closes_at = Carbon::now()->addDay();
+        $poll->save();
+
+        Carbon::setTestNow(Carbon::now()->addDays(2));
+        try {
+            $this->actingAs($this->user('bob'))
+                ->post($this->votePath($poll), ['option' => $this->option($poll, 'agree')]);
+
+            $this->actingAs($this->user('bob'))
+                ->visit($this->showPath($poll))
+                ->see(__('Vote closed'))
+                ->dontSee(__('Close the vote'));
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $this->assertSame(0, PollVote::where('poll_id', $poll->id)->count());
+    }
+
     public function testProposalOptionsAreTranslated()
     {
         $poll = $this->createPoll('Translated options?');

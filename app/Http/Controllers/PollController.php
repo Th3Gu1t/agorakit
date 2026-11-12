@@ -132,6 +132,22 @@ class PollController extends Controller
     }
 
     /**
+     * Close a vote now, before its closing date.
+     */
+    public function close(Group $group, Discussion $discussion, Poll $poll)
+    {
+        $this->checkPoll($group, $discussion, $poll);
+        $this->authorize('close', $poll);
+
+        if ($poll->isOpen()) {
+            $poll->close();
+            flash(__('The vote is closed.'));
+        }
+
+        return $this->showPoll($group, $discussion, $poll);
+    }
+
+    /**
      * Options of a proposal: fixed, translated at display time.
      */
     private function proposalOptions(bool $allowBlock): array

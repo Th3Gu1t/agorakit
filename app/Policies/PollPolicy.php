@@ -34,4 +34,12 @@ class PollPolicy extends BasePolicy
     {
         return $user->isMemberOf($poll->discussion->group);
     }
+
+    /**
+     * The author of a vote and the admins of the group may close it before its closing date.
+     */
+    public function close(User $user, Poll $poll)
+    {
+        return (int) $user->id === (int) $poll->user_id || $user->isAdminOf($poll->discussion->group);
+    }
 }

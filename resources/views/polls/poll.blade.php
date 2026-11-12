@@ -107,6 +107,19 @@
             </form>
         @endif
 
+        @if ($poll->isOpen())
+            @can('close', $poll)
+                <form action="{{ route('groups.discussions.polls.close', [$group, $discussion, $poll]) }}" class="mb-3"
+                    method="POST" up-confirm="{{ __('Close this vote now? Nobody will be able to vote anymore.') }}"
+                    up-target="#poll-{{ $poll->id }}">
+                    @csrf
+                    <button class="btn btn-outline-secondary btn-sm" type="submit">
+                        <i aria-hidden="true" class="fas fa-lock me-1"></i> {{ __('Close the vote') }}
+                    </button>
+                </form>
+            @endcan
+        @endif
+
         {{-- Who voted what, and why --}}
         @if ($votes->count() > 0)
             <details class="mb-2">
