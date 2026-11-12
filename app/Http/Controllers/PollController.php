@@ -93,6 +93,9 @@ class PollController extends Controller
         $discussion->touch();
         $group->touch();
 
+        // members who asked for it are notified at once
+        event(new \App\Events\ContentCreated($poll));
+
         flash(__('The vote is open.'));
 
         return $this->showPoll($group, $discussion, $poll);

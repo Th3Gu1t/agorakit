@@ -5,10 +5,12 @@ namespace Tests;
 use App\Discussion;
 use App\Group;
 use App\Membership;
+use App\Notifications\PollCreated;
 use App\Poll;
 use App\PollVote;
 use App\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * Votes held in discussions.
@@ -548,6 +550,53 @@ class PollTest extends BaseTest
         $this->assertCount(1, $badges);
         $item = $badges->closest('[up-expand]');
         $this->assertStringContainsString('Open vote here', $item->text());
+    }
+
+    private function setNotificationInterval(string $name, int $minutes): void
+    {
+        Membership::where('group_id', $this->group()->id)
+            ->where('user_id', $this->user($name)->id)
+            ->update(['notification_interval' => $minutes]);
+    }
+
+    public function testMembersAskingForInstantNotificationsHearOfANewVote()
+    {
+        $this->setNotificationInterval('carol', 1);
+        $this->user('carol')->setPreference('locale', 'fr');
+        Notification::fake();
+
+        try {
+            $this->actingAs($this->user('alice'))
+                ->post(route('groups.discussions.polls.store', [$this->group(), $this->discussion()]), [
+                    'type' => 'proposal',
+                    'question' => 'Do we hear of it at once?',
+                ]);
+        } finally {
+            $this->setNotificationInterval('carol', 60);
+            $this->user('carol')->setPreference('locale', 'en');
+        }
+
+        $poll = Poll::where('question', 'Do we hear of it at once?')->firstOrFail();
+        Notification::assertSentTo($this->user('carol'), PollCreated::class, function (PollCreated $notification) use ($poll) {
+            return $notification->poll->is($poll) && $notification->locale === 'fr';
+        });
+        // bob gets the periodic summary instead, and alice started the vote
+        Notification::assertNotSentTo($this->user('bob'), PollCreated::class);
+        Notification::assertNotSentTo($this->user('alice'), PollCreated::class);
+    }
+
+    public function testNewVoteEmailLeadsToTheVote()
+    {
+        $poll = $this->discussionWithProposal('What does the email say?');
+        $poll->closes_at = Carbon::create(2030, 6, 1, 18, 0);
+        $poll->save();
+
+        $mail = (new PollCreated($poll, $this->user('alice')))->toMail($this->user('bob'));
+
+        $this->assertStringContainsString('What does the email say?', $mail->subject);
+        $this->assertStringContainsString('#poll-' . $poll->id, $mail->actionUrl);
+        $this->assertContains('What does the email say?', $mail->introLines);
+        $this->assertContains(__('Closes on :date', ['date' => $poll->closes_at->isoFormat('LLL')]), $mail->introLines);
     }
 
     public function testProposalOptionsAreTranslated()

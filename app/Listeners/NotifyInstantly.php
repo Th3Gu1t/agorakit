@@ -7,6 +7,7 @@ use Notification;
 use App\Comment;
 use App\User;
 use App\Discussion;
+use App\Poll;
 use Auth;
 
 class NotifyInstantly
@@ -52,6 +53,19 @@ class NotifyInstantly
 
             foreach ($users as $user) {
                 Notification::send($user, new \App\Notifications\DiscussionCreated($discussion, Auth::user()));
+            }
+        }
+
+        // Votes
+        if ($event->model instanceof Poll) {
+            $poll = $event->model;
+
+            // get a list of users that must be notified instantly
+            $users = $poll->discussion->group->users()->where('notification_interval', 1)->get()->except(Auth::id());
+
+            foreach ($users as $user) {
+                $notification = (new \App\Notifications\PollCreated($poll, Auth::user()))->locale($user->preferredLocale());
+                Notification::send($user, $notification);
             }
         }
     }
