@@ -45,6 +45,13 @@
             <div class="mb-3">{!! nl2br(e($poll->body)) !!}</div>
         @endif
 
+        @if ($poll->outcome)
+            <div class="alert alert-info mb-3 poll-outcome">
+                <strong><i aria-hidden="true" class="fas fa-gavel me-1"></i> {{ __('Decision') }}</strong>
+                <div>{!! nl2br(e($poll->outcome)) !!}</div>
+            </div>
+        @endif
+
         {{-- Results --}}
         <div class="mb-2">
             @foreach ($poll->options as $option)
@@ -122,6 +129,24 @@
                         <i aria-hidden="true" class="fas fa-lock me-1"></i> {{ __('Close the vote') }}
                     </button>
                 </form>
+            @endcan
+        @endif
+
+        @if (!$poll->isOpen())
+            @can('decide', $poll)
+                <details class="mb-3" @if (!$poll->outcome) open @endif>
+                    <summary>{{ $poll->outcome ? __('Edit the decision') : __('Write down the decision taken') }}</summary>
+                    <form action="{{ route('groups.discussions.polls.decide', [$group, $discussion, $poll]) }}"
+                        class="mt-2" method="POST" up-target="#poll-{{ $poll->id }}">
+                        @csrf
+                        <label class="form-label visually-hidden" for="poll-{{ $poll->id }}-outcome">{{ __('Decision') }}</label>
+                        <textarea class="form-control" id="poll-{{ $poll->id }}-outcome" name="outcome" rows="3">{{ $poll->outcome }}</textarea>
+                        <div class="form-text">
+                            {{ __('Sum up what the group decided, given the results and the discussion.') }}
+                        </div>
+                        <button class="btn btn-primary btn-sm mt-2" type="submit">{{ __('Save the decision') }}</button>
+                    </form>
+                </details>
             @endcan
         @endif
 

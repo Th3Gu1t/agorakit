@@ -153,6 +153,29 @@ class PollController extends Controller
     }
 
     /**
+     * Record the decision taken, once the vote is closed.
+     */
+    public function decide(Request $request, Group $group, Discussion $discussion, Poll $poll)
+    {
+        $this->checkPoll($group, $discussion, $poll);
+        $this->authorize('decide', $poll);
+
+        if ($poll->isOpen()) {
+            warning(__('Close the vote before writing the decision.'));
+            return $this->showPoll($group, $discussion, $poll);
+        }
+
+        $request->validate(['outcome' => ['nullable', 'string', 'max:10000']]);
+
+        $poll->outcome = $request->filled('outcome') ? $request->input('outcome') : null;
+        $poll->save();
+
+        flash(__('The decision is recorded.'));
+
+        return $this->showPoll($group, $discussion, $poll);
+    }
+
+    /**
      * Options of a proposal: fixed, translated at display time.
      */
     private function proposalOptions(bool $allowBlock): array

@@ -727,6 +727,76 @@ class PollTest extends BaseTest
         $this->assertNull(PollVote::where('poll_id', $poll->id)->where('user_id', $this->user('carol')->id)->first()->reason);
     }
 
+    private function decidePath(Poll $poll): string
+    {
+        return route('groups.discussions.polls.decide', [$this->group(), $poll->discussion, $poll]);
+    }
+
+    public function testAuthorWritesTheDecisionOnceClosed()
+    {
+        $poll = $this->discussionWithProposal('Decision: we buy the printer');
+        $poll->close();
+
+        $this->actingAs($this->user('alice'))
+            ->visit($this->showPath($poll))
+            ->see(__('Write down the decision taken'))
+            ->type('Adopted: we buy it in January.', 'outcome')
+            ->press(__('Save the decision'))
+            ->see(__('The decision is recorded.'))
+            ->see(__('Decision'))
+            ->see('Adopted: we buy it in January.')
+            ->see(__('Edit the decision'));
+
+        $this->assertSame('Adopted: we buy it in January.', $poll->fresh()->outcome);
+
+        // everyone who sees the discussion sees the decision
+        $this->actingAs($this->user('bob'))
+            ->visit($this->showPath($poll))
+            ->see('Adopted: we buy it in January.')
+            ->dontSee(__('Edit the decision'));
+    }
+
+    public function testGroupAdminEditsTheDecision()
+    {
+        $poll = $this->discussionWithProposal('Decision: edited by an admin');
+        $poll->close();
+        $poll->outcome = 'First wording';
+        $poll->save();
+
+        $this->actingAs($this->user('erin'))
+            ->post($this->decidePath($poll), ['outcome' => 'Better wording']);
+
+        $this->assertSame('Better wording', $poll->fresh()->outcome);
+    }
+
+    public function testNoDecisionWhileTheVoteIsOpen()
+    {
+        $poll = $this->discussionWithProposal('Decision: too early');
+
+        $this->actingAs($this->user('alice'))
+            ->visit($this->showPath($poll))
+            ->dontSee(__('Write down the decision taken'));
+
+        $this->actingAs($this->user('alice'))
+            ->post($this->decidePath($poll), ['outcome' => 'Decided before the end']);
+
+        $this->assertNull($poll->fresh()->outcome);
+    }
+
+    public function testOtherMembersCannotWriteTheDecision()
+    {
+        $poll = $this->discussionWithProposal('Decision: not by others');
+        $poll->close();
+
+        foreach (['bob', 'dave'] as $name) {
+            $this->actingAs($this->user($name))
+                ->post($this->decidePath($poll), ['outcome' => 'Decided by ' . $name])
+                ->assertResponseStatus(403);
+        }
+
+        $this->assertNull($poll->fresh()->outcome);
+    }
+
     public function testProposalOptionsAreTranslated()
     {
         $poll = $this->createPoll('Translated options?');
