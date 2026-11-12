@@ -61,7 +61,7 @@ class LoginController extends Controller
                 return redirect('/');
             } else {
                 warning(__('No user found, please create an account instead'));
-                return redirect()->back();
+                return $this->backToLoginForm($request);
             }
         } else {
             if ($user) {
@@ -77,13 +77,21 @@ class LoginController extends Controller
                 } else {
                     $this->incrementLoginAttempts($request);
                     warning(__('Incorrect password and/or username'));
-                    return redirect()->back();
+                    return $this->backToLoginForm($request);
                 }
             } else {
                 warning(__('No user found, please create an account instead'));
-                return redirect()->back();
+                return $this->backToLoginForm($request);
             }
         }
+    }
+
+    /**
+     * Sends the visitor back to the sign-in form, keeping the identifier they typed.
+     */
+    private function backToLoginForm(Request $request)
+    {
+        return redirect()->back()->withInput($request->only('login'));
     }
 
     /**

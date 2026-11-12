@@ -69,6 +69,30 @@ class LoginTest extends BaseTest
         $this->assertTrue(Auth::guest());
     }
 
+    public function testIdentifierIsKeptAfterWrongPassword()
+    {
+        $this->visit('/login')
+            ->type(self::ADMIN_EMAIL, 'login')
+            ->type('not-the-password', 'password')
+            ->press(trans('messages.login'))
+            ->seeInField('login', self::ADMIN_EMAIL)
+            ->dontSee('not-the-password');
+    }
+
+    public function testIdentifierIsKeptWhenNoAccountMatches()
+    {
+        $this->visit('/login')
+            ->type('nobody@agorakit.local', 'login')
+            ->type('some-password', 'password')
+            ->press(trans('messages.login'))
+            ->seeInField('login', 'nobody@agorakit.local');
+
+        $this->visit('/login')
+            ->type('nobody@agorakit.local', 'login')
+            ->press(trans('messages.login'))
+            ->seeInField('login', 'nobody@agorakit.local');
+    }
+
     public function testEmptyPasswordSendsLoginLink()
     {
         Mail::fake();
