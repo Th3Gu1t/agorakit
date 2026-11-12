@@ -47,8 +47,11 @@
 
         @if ($poll->outcome)
             <div class="alert alert-info mb-3 poll-outcome">
-                <strong><i aria-hidden="true" class="fas fa-gavel me-1"></i> {{ __('Decision') }}</strong>
-                <div>{!! nl2br(e($poll->outcome)) !!}</div>
+                {{-- one wrapper, so that the theme's flex alert stacks the title over the text --}}
+                <div>
+                    <strong><i aria-hidden="true" class="fas fa-gavel me-1"></i> {{ __('Decision') }}</strong>
+                    <div>{!! nl2br(e($poll->outcome)) !!}</div>
+                </div>
             </div>
         @endif
 
