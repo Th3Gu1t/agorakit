@@ -8,6 +8,7 @@ use App\Mail\Notification as SummaryMail;
 use App\Membership;
 use App\Notifications\PollCreated;
 use App\Poll;
+use App\PollOption;
 use App\PollVote;
 use App\User;
 use Carbon\Carbon;
@@ -28,6 +29,8 @@ class PollTest extends BaseTest
 {
     private const GROUP = 'Voting group';
     private const NEIGHBOUR_GROUP = 'Neighbour group';
+    private const DELETE_WARNING = 'Its results and the vote of :count member are deleted for good.'
+        . '|Its results and the votes of :count members are deleted for good.';
     private const DISCUSSION = 'Should we buy a printer?';
 
     private function user(string $name): User
@@ -686,6 +689,170 @@ class PollTest extends BaseTest
         }
 
         $this->assertNull($this->summarySentTo('erin'));
+    }
+
+    public function testMemberStartsASecretVote()
+    {
+        $this->actingAs($this->user('alice'))
+            ->visit($this->createPath())
+            ->select('proposal', 'type')
+            ->type('We elect Carol as treasurer', 'question')
+            ->check('secret')
+            ->press(__('Start the vote'))
+            ->see(__('Secret vote'));
+
+        $this->assertTrue(Poll::where('question', 'We elect Carol as treasurer')->firstOrFail()->secret);
+    }
+
+    public function testSecretVoteShowsResultsButNotWhoVotedWhat()
+    {
+        $poll = $this->discussionWithProposal('Secret: we elect Bob');
+        $poll->secret = true;
+        $poll->save();
+
+        $this->actingAs($this->user('bob'))
+            ->visit($this->showPath($poll))
+            ->dontSeeElement('textarea[name="reason"]')
+            ->select($this->option($poll, 'agree'), 'option')
+            ->press(__('Vote'))
+            ->see(__('your vote'));
+        // a reason sent anyway is not kept
+        $this->actingAs($this->user('carol'))
+            ->post($this->votePath($poll), ['option' => $this->option($poll, 'disagree'), 'reason' => 'Carol says no']);
+
+        foreach (['erin', 'alice'] as $name) {
+            $this->actingAs($this->user($name))
+                ->visit($this->showPath($poll))
+                ->see(trans_choice(':count vote|:count votes', 1) . ' · 50 %')
+                ->dontSee(__('Votes and reasons'))
+                ->dontSee('Carol says no');
+        }
+        $this->assertNull(PollVote::where('poll_id', $poll->id)->where('user_id', $this->user('carol')->id)->first()->reason);
+    }
+
+    private function decidePath(Poll $poll): string
+    {
+        return route('groups.discussions.polls.decide', [$this->group(), $poll->discussion, $poll]);
+    }
+
+    public function testAuthorWritesTheDecisionOnceClosed()
+    {
+        $poll = $this->discussionWithProposal('Decision: we buy the printer');
+        $poll->close();
+
+        $this->actingAs($this->user('alice'))
+            ->visit($this->showPath($poll))
+            ->see(__('Write down the decision taken'))
+            ->type('Adopted: we buy it in January.', 'outcome')
+            ->press(__('Save the decision'))
+            ->see(__('The decision is recorded.'))
+            ->see(__('Decision'))
+            ->see('Adopted: we buy it in January.')
+            ->see(__('Edit the decision'));
+
+        $this->assertSame('Adopted: we buy it in January.', $poll->fresh()->outcome);
+
+        // everyone who sees the discussion sees the decision
+        $this->actingAs($this->user('bob'))
+            ->visit($this->showPath($poll))
+            ->see('Adopted: we buy it in January.')
+            ->dontSee(__('Edit the decision'));
+    }
+
+    public function testGroupAdminEditsTheDecision()
+    {
+        $poll = $this->discussionWithProposal('Decision: edited by an admin');
+        $poll->close();
+        $poll->outcome = 'First wording';
+        $poll->save();
+
+        $this->actingAs($this->user('erin'))
+            ->post($this->decidePath($poll), ['outcome' => 'Better wording']);
+
+        $this->assertSame('Better wording', $poll->fresh()->outcome);
+    }
+
+    public function testNoDecisionWhileTheVoteIsOpen()
+    {
+        $poll = $this->discussionWithProposal('Decision: too early');
+
+        $this->actingAs($this->user('alice'))
+            ->visit($this->showPath($poll))
+            ->dontSee(__('Write down the decision taken'));
+
+        $this->actingAs($this->user('alice'))
+            ->post($this->decidePath($poll), ['outcome' => 'Decided before the end']);
+
+        $this->assertNull($poll->fresh()->outcome);
+    }
+
+    public function testOtherMembersCannotWriteTheDecision()
+    {
+        $poll = $this->discussionWithProposal('Decision: not by others');
+        $poll->close();
+
+        foreach (['bob', 'dave'] as $name) {
+            $this->actingAs($this->user($name))
+                ->post($this->decidePath($poll), ['outcome' => 'Decided by ' . $name])
+                ->assertResponseStatus(403);
+        }
+
+        $this->assertNull($poll->fresh()->outcome);
+    }
+
+    private function deleteConfirmPath(Poll $poll): string
+    {
+        return route('groups.discussions.polls.deleteconfirm', [$this->group(), $poll->discussion, $poll]);
+    }
+
+    public function testAuthorDeletesTheVote()
+    {
+        $poll = $this->discussionWithProposal('Deleted: started by mistake');
+        $this->actingAs($this->user('bob'))->post($this->votePath($poll), ['option' => $this->option($poll, 'agree')]);
+
+        $this->actingAs($this->user('alice'))
+            ->visit($this->showPath($poll))
+            ->click(__('Delete the vote'))
+            ->seePageIs($this->deleteConfirmPath($poll))
+            ->see('Deleted: started by mistake')
+            ->see(trans_choice(self::DELETE_WARNING, 1))
+            ->press(__('Delete the vote'))
+            ->see(__('The vote is deleted.'))
+            ->dontSeeElement('#poll-' . $poll->id);
+
+        $this->assertFalse(Poll::whereKey($poll->id)->exists());
+        $this->assertSame(0, PollOption::where('poll_id', $poll->id)->count());
+        $this->assertSame(0, PollVote::where('poll_id', $poll->id)->count());
+    }
+
+    public function testGroupAdminDeletesTheVote()
+    {
+        $poll = $this->discussionWithProposal('Deleted by an admin');
+
+        $this->actingAs($this->user('erin'))
+            ->delete(route('groups.discussions.polls.delete', [$this->group(), $poll->discussion, $poll]));
+
+        $this->assertFalse(Poll::whereKey($poll->id)->exists());
+    }
+
+    public function testOtherMembersCannotDeleteTheVote()
+    {
+        $poll = $this->discussionWithProposal('Not deleted by others');
+
+        $this->actingAs($this->user('bob'))
+            ->visit($this->showPath($poll))
+            ->dontSee(__('Delete the vote'));
+
+        foreach (['bob', 'dave'] as $name) {
+            $this->actingAs($this->user($name))
+                ->get($this->deleteConfirmPath($poll))
+                ->assertResponseStatus(403);
+            $this->actingAs($this->user($name))
+                ->delete(route('groups.discussions.polls.delete', [$this->group(), $poll->discussion, $poll]))
+                ->assertResponseStatus(403);
+        }
+
+        $this->assertTrue(Poll::whereKey($poll->id)->exists());
     }
 
     public function testProposalOptionsAreTranslated()

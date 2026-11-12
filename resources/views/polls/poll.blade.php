@@ -26,6 +26,9 @@
             @else
                 {{ __('Choice') }}
             @endif
+            @if ($poll->secret)
+                · <i aria-hidden="true" class="fas fa-user-secret"></i> {{ __('Secret vote') }}
+            @endif
             · {{ __('Started by :name', ['name' => $poll->user->name]) }}
             · {{ dateForHumans($poll->created_at) }}
             ·
@@ -40,6 +43,16 @@
 
         @if ($poll->body)
             <div class="mb-3">{!! nl2br(e($poll->body)) !!}</div>
+        @endif
+
+        @if ($poll->outcome)
+            <div class="alert alert-info mb-3 poll-outcome">
+                {{-- one wrapper, so that the theme's flex alert stacks the title over the text --}}
+                <div>
+                    <strong><i aria-hidden="true" class="fas fa-gavel me-1"></i> {{ __('Decision') }}</strong>
+                    <div>{!! nl2br(e($poll->outcome)) !!}</div>
+                </div>
+            </div>
         @endif
 
         {{-- Results --}}
@@ -98,8 +111,10 @@
                     @endforeach
                 </fieldset>
 
-                <label class="form-label mt-2" for="poll-{{ $poll->id }}-reason">{{ __('Reason (optional)') }}</label>
-                <textarea class="form-control" id="poll-{{ $poll->id }}-reason" name="reason" rows="2">{{ $myVote?->reason }}</textarea>
+                @unless ($poll->secret)
+                    <label class="form-label mt-2" for="poll-{{ $poll->id }}-reason">{{ __('Reason (optional)') }}</label>
+                    <textarea class="form-control" id="poll-{{ $poll->id }}-reason" name="reason" rows="2">{{ $myVote?->reason }}</textarea>
+                @endunless
 
                 <button class="btn btn-primary mt-2" type="submit">
                     {{ $myVote ? __('Change my vote') : __('Vote') }}
@@ -107,21 +122,49 @@
             </form>
         @endif
 
-        @if ($poll->isOpen())
-            @can('close', $poll)
-                <form action="{{ route('groups.discussions.polls.close', [$group, $discussion, $poll]) }}" class="mb-3"
-                    method="POST" up-confirm="{{ __('Close this vote now? Nobody will be able to vote anymore.') }}"
-                    up-target="#poll-{{ $poll->id }}">
-                    @csrf
-                    <button class="btn btn-outline-secondary btn-sm" type="submit">
-                        <i aria-hidden="true" class="fas fa-lock me-1"></i> {{ __('Close the vote') }}
-                    </button>
-                </form>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            @if ($poll->isOpen())
+                @can('close', $poll)
+                    <form action="{{ route('groups.discussions.polls.close', [$group, $discussion, $poll]) }}"
+                        method="POST" up-confirm="{{ __('Close this vote now? Nobody will be able to vote anymore.') }}"
+                        up-target="#poll-{{ $poll->id }}">
+                        @csrf
+                        <button class="btn btn-outline-secondary btn-sm" type="submit">
+                            <i aria-hidden="true" class="fas fa-lock me-1"></i> {{ __('Close the vote') }}
+                        </button>
+                    </form>
+                @endcan
+            @endif
+
+            @can('delete', $poll)
+                <a class="btn btn-link btn-sm text-danger"
+                    href="{{ route('groups.discussions.polls.deleteconfirm', [$group, $discussion, $poll]) }}"
+                    up-layer="new">
+                    <i aria-hidden="true" class="fa fa-trash me-1"></i> {{ __('Delete the vote') }}
+                </a>
+            @endcan
+        </div>
+
+        @if (!$poll->isOpen())
+            @can('decide', $poll)
+                <details class="mb-3" @if (!$poll->outcome) open @endif>
+                    <summary>{{ $poll->outcome ? __('Edit the decision') : __('Write down the decision taken') }}</summary>
+                    <form action="{{ route('groups.discussions.polls.decide', [$group, $discussion, $poll]) }}"
+                        class="mt-2" method="POST" up-target="#poll-{{ $poll->id }}">
+                        @csrf
+                        <label class="form-label visually-hidden" for="poll-{{ $poll->id }}-outcome">{{ __('Decision') }}</label>
+                        <textarea class="form-control" id="poll-{{ $poll->id }}-outcome" name="outcome" rows="3">{{ $poll->outcome }}</textarea>
+                        <div class="form-text">
+                            {{ __('Sum up what the group decided, given the results and the discussion.') }}
+                        </div>
+                        <button class="btn btn-primary btn-sm mt-2" type="submit">{{ __('Save the decision') }}</button>
+                    </form>
+                </details>
             @endcan
         @endif
 
-        {{-- Who voted what, and why --}}
-        @if ($votes->count() > 0)
+        {{-- Who voted what, and why: never for a secret vote --}}
+        @if ($votes->count() > 0 && !$poll->secret)
             <details class="mb-2">
                 <summary>{{ __('Votes and reasons') }} ({{ $votes->count() }})</summary>
                 <ul class="list-unstyled mt-2 mb-0">

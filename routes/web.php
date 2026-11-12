@@ -258,6 +258,9 @@ Route::group(['middleware' => ['web']], function () {
         Route::post('discussions/{discussion}/polls', 'PollController@store')->name('.discussions.polls.store');
         Route::post('discussions/{discussion}/polls/{poll}/vote', 'PollController@vote')->name('.discussions.polls.vote');
         Route::post('discussions/{discussion}/polls/{poll}/close', 'PollController@close')->name('.discussions.polls.close');
+        Route::post('discussions/{discussion}/polls/{poll}/decision', 'PollController@decide')->name('.discussions.polls.decide');
+        Route::get('discussions/{discussion}/polls/{poll}/delete', 'PollController@destroyConfirm')->name('.discussions.polls.deleteconfirm');
+        Route::delete('discussions/{discussion}/polls/{poll}/delete', 'PollController@destroy')->name('.discussions.polls.delete');
 
         // Events
         Route::get('calendarevents', 'GroupCalendarEventController@index')->name('.calendarevents.index');

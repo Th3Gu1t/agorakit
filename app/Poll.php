@@ -36,9 +36,10 @@ class Poll extends Model
 
     protected $table = 'polls';
 
-    protected $fillable = ['type', 'question', 'body', 'closes_at'];
+    protected $fillable = ['type', 'question', 'body', 'secret', 'closes_at'];
 
     protected $casts = [
+        'secret' => 'boolean',
         'closes_at' => 'datetime',
         'closed_at' => 'datetime',
     ];

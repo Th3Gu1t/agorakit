@@ -77,6 +77,7 @@ class PollController extends Controller
                 'type' => $request->input('type'),
                 'question' => $request->input('question'),
                 'body' => $request->input('body'),
+                'secret' => $request->boolean('secret'),
                 'closes_at' => $closesAt,
             ]);
             $poll->user()->associate(Auth::user());
@@ -126,7 +127,8 @@ class PollController extends Controller
             'poll_id' => $poll->id,
             'user_id' => Auth::id(),
             'poll_option_id' => (int) $request->input('option'),
-            'reason' => $request->filled('reason') ? $request->input('reason') : null,
+            // a secret vote shows no reason: none is kept
+            'reason' => $request->filled('reason') && !$poll->secret ? $request->input('reason') : null,
         ]], ['poll_id', 'user_id'], ['poll_option_id', 'reason', 'updated_at']);
 
         flash(__('Your vote is recorded.'));
@@ -148,6 +150,63 @@ class PollController extends Controller
         }
 
         return $this->showPoll($group, $discussion, $poll);
+    }
+
+    /**
+     * Record the decision taken, once the vote is closed.
+     */
+    public function decide(Request $request, Group $group, Discussion $discussion, Poll $poll)
+    {
+        $this->checkPoll($group, $discussion, $poll);
+        $this->authorize('decide', $poll);
+
+        if ($poll->isOpen()) {
+            warning(__('Close the vote before writing the decision.'));
+            return $this->showPoll($group, $discussion, $poll);
+        }
+
+        $request->validate(['outcome' => ['nullable', 'string', 'max:10000']]);
+
+        $poll->outcome = $request->filled('outcome') ? $request->input('outcome') : null;
+        $poll->save();
+
+        flash(__('The decision is recorded.'));
+
+        return $this->showPoll($group, $discussion, $poll);
+    }
+
+    /**
+     * Ask for confirmation before deleting a vote.
+     */
+    public function destroyConfirm(Group $group, Discussion $discussion, Poll $poll)
+    {
+        $this->checkPoll($group, $discussion, $poll);
+        $this->authorize('delete', $poll);
+
+        return view('polls.delete')
+            ->with('group', $group)
+            ->with('discussion', $discussion)
+            ->with('poll', $poll)
+            ->with('tab', 'discussions');
+    }
+
+    /**
+     * Delete a vote, with its options and the votes of members.
+     */
+    public function destroy(Group $group, Discussion $discussion, Poll $poll)
+    {
+        $this->checkPoll($group, $discussion, $poll);
+        $this->authorize('delete', $poll);
+
+        DB::transaction(function () use ($poll) {
+            $poll->votes()->delete();
+            $poll->options()->delete();
+            $poll->delete();
+        });
+
+        flash(__('The vote is deleted.'));
+
+        return redirect()->route('groups.discussions.show', [$group, $discussion]);
     }
 
     /**

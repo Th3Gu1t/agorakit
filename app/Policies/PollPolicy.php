@@ -42,4 +42,20 @@ class PollPolicy extends BasePolicy
     {
         return (int) $user->id === (int) $poll->user_id || $user->isAdminOf($poll->discussion->group);
     }
+
+    /**
+     * Those who may close a vote also write down the decision taken once it is closed.
+     */
+    public function decide(User $user, Poll $poll)
+    {
+        return $this->close($user, $poll);
+    }
+
+    /**
+     * Those who may close a vote may also delete it, for instance when it was started by mistake.
+     */
+    public function delete(User $user, Poll $poll)
+    {
+        return $this->close($user, $poll);
+    }
 }
