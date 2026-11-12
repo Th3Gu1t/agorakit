@@ -4,7 +4,7 @@
 
 @section('content')
 
-	<h1>Send me a login link by email</h1>
+	<h1>{{ __('Send me a login link by email') }}</h1>
 
 	<form method="POST" action="{{ route('sendloginbyemail') }}">
 

@@ -7,8 +7,7 @@ use Illuminate\Http\Request;
 use App\User;
 use Auth;
 use URL;
-use App\Mail\LoginByEmail;
-use Mail;
+use App\Services\LoginLinkService;
 
 class LoginByEmailController extends Controller
 {
@@ -22,17 +21,23 @@ class LoginByEmailController extends Controller
         ->with('email', $email);
     }
 
-    public function sendLoginByEmail(Request $request)
+    public function sendLoginByEmail(Request $request, LoginLinkService $loginLinks)
     {
-        $user = User::where('email', trim($request->get('email')))->first();
+        // find user, even if it was deleted, like the sign-in form does
+        $user = User::where('email', trim($request->get('email')))->withTrashed()->first();
 
         if ($user) {
-            // send invitation email
-            Mail::to($request->get('email'))->send(new LoginByEmail($user));
-            flash('Check your mailbox, we sent you a login link. It will expires in 30 minutes');
+            // send login link by email, unless too many were sent recently
+            if (!$loginLinks->send($user, $request->ip())) {
+                warning(__(
+                    'Too many login links were requested. Use a link you already received, or try again later.'
+                ));
+                return redirect()->back();
+            }
+            flash(__('Check your mailbox, we sent you a login link. It will expires in 30 minutes'));
             return redirect('/');
         } else {
-            flash('No user found with this email, please create an account instead');
+            flash(__('No user found, please create an account instead'));
             return redirect()->back();
         }
     }

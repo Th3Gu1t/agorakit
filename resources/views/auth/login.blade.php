@@ -17,7 +17,7 @@
         <div class="form-group mb-3">
             <label class="form-label">{{ __('Username or Email') }}</label>
             <input class="form-control" name="login" required="required" type="text"
-                value="{{ old('username') ?: old('email') }}">
+                value="{{ old('login') }}">
         </div>
 
         <div class="form-group mb-3">

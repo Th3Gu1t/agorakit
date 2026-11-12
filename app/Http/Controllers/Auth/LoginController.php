@@ -8,9 +8,8 @@ use App\Providers\RouteServiceProvider;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Foundation\Auth\ThrottlesLogins;
 use App\User;
-use Mail;
 use Auth;
-use App\Mail\LoginByEmail;
+use App\Services\LoginLinkService;
 
 class LoginController extends Controller
 {
@@ -43,7 +42,7 @@ class LoginController extends Controller
         $this->middleware('guest')->except('logout');
     }
 
-    public function login(Request $request)
+    public function login(Request $request, LoginLinkService $loginLinks)
     {
         // decide if attempt is made with an email or a username
         $login = request()->input('login');
@@ -55,15 +54,26 @@ class LoginController extends Controller
         // check if password is not filled
         if (empty($request->input('password'))) {
             if ($user) {
-                // send login link by email
-                Mail::to($user->email)->send(new LoginByEmail($user));
+                // send login link by email, unless too many were sent recently
+                if (!$loginLinks->send($user, $request->ip())) {
+                    warning(__(
+                        'Too many login links were requested. Use a link you already received, or try again later.'
+                    ));
+                    return $this->backToLoginForm($request);
+                }
                 flash(__('Check your mailbox, we sent you a login link. It will expires in 30 minutes'));
                 return redirect('/');
             } else {
                 warning(__('No user found, please create an account instead'));
-                return redirect()->back();
+                return $this->backToLoginForm($request);
             }
         } else {
+            // refuse to try more passwords after too many wrong ones
+            if ($this->hasTooManyLoginAttempts($request)) {
+                $this->fireLockoutEvent($request);
+                return $this->sendLockoutResponse($request);
+            }
+
             if ($user) {
                 // restore user if it was deleted, even if password is not correct
                 if ($user->trashed())
@@ -73,17 +83,26 @@ class LoginController extends Controller
 
                 // attempt to login
                 if (Auth::attempt(['email' => $user->email, 'password' => $request->input('password')], request()->input('remember'))) {
+                    $this->clearLoginAttempts($request);
                     return redirect()->intended('/');
                 } else {
                     $this->incrementLoginAttempts($request);
                     warning(__('Incorrect password and/or username'));
-                    return redirect()->back();
+                    return $this->backToLoginForm($request);
                 }
             } else {
                 warning(__('No user found, please create an account instead'));
-                return redirect()->back();
+                return $this->backToLoginForm($request);
             }
         }
+    }
+
+    /**
+     * Sends the visitor back to the sign-in form, keeping the identifier they typed.
+     */
+    private function backToLoginForm(Request $request)
+    {
+        return redirect()->back()->withInput($request->only('login'));
     }
 
     /**
