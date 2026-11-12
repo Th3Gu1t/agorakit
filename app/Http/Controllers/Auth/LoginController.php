@@ -68,6 +68,12 @@ class LoginController extends Controller
                 return $this->backToLoginForm($request);
             }
         } else {
+            // refuse to try more passwords after too many wrong ones
+            if ($this->hasTooManyLoginAttempts($request)) {
+                $this->fireLockoutEvent($request);
+                return $this->sendLockoutResponse($request);
+            }
+
             if ($user) {
                 // restore user if it was deleted, even if password is not correct
                 if ($user->trashed())
@@ -77,6 +83,7 @@ class LoginController extends Controller
 
                 // attempt to login
                 if (Auth::attempt(['email' => $user->email, 'password' => $request->input('password')], request()->input('remember'))) {
+                    $this->clearLoginAttempts($request);
                     return redirect()->intended('/');
                 } else {
                     $this->incrementLoginAttempts($request);

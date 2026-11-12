@@ -98,6 +98,60 @@ class LoginTest extends BaseTest
         $this->assertTrue(Auth::guest());
     }
 
+    public function testRepeatedWrongPasswordsLockSignInForAWhile()
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => 'wrong-' . $i]);
+        }
+
+        // Even the right password is now refused, with an explanation.
+        $this->visit('/login')
+            ->type(self::ADMIN_EMAIL, 'login')
+            ->type(self::ADMIN_PASSWORD, 'password')
+            ->press(trans('messages.login'))
+            ->see('Too many login attempts')
+            ->seeInField('login', self::ADMIN_EMAIL);
+        $this->assertTrue(Auth::guest());
+
+        Carbon::setTestNow(Carbon::now()->addSeconds(61));
+        try {
+            $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => self::ADMIN_PASSWORD]);
+        } finally {
+            Carbon::setTestNow();
+        }
+        $this->assertSame(self::ADMIN_EMAIL, Auth::user()->email);
+    }
+
+    public function testLoginLinkStaysAvailableWhilePasswordsAreLocked()
+    {
+        Mail::fake();
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => 'wrong-' . $i]);
+        }
+
+        $link = $this->requestLoginLink(self::ADMIN_EMAIL, self::ADMIN_EMAIL);
+        $this->get($link)->assertRedirectedTo('/');
+
+        $this->assertSame(self::ADMIN_EMAIL, Auth::user()->email);
+    }
+
+    public function testSuccessfulSignInResetsTheCountOfWrongPasswords()
+    {
+        for ($i = 0; $i < 4; $i++) {
+            $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => 'wrong-' . $i]);
+        }
+        $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => self::ADMIN_PASSWORD]);
+        $this->assertSame(self::ADMIN_EMAIL, Auth::user()->email);
+        Auth::logout();
+
+        for ($i = 0; $i < 4; $i++) {
+            $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => 'wrong-' . $i]);
+        }
+        $this->post('/login', ['login' => self::ADMIN_EMAIL, 'password' => self::ADMIN_PASSWORD]);
+
+        $this->assertSame(self::ADMIN_EMAIL, Auth::user()->email);
+    }
+
     public function testIdentifierIsKeptAfterWrongPassword()
     {
         $this->visit('/login')
