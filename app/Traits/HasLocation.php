@@ -4,7 +4,6 @@ namespace App\Traits;
 
 use App\Casts\LocationFromJson;
 
-
 /**
  * This trait allows any model to have a location (ie geographical address)
  * Attributes from the web form:

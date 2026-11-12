@@ -20,7 +20,7 @@ class BasePolicy
             return true;
         }
 
-         if ($user->isBanned()) {
+        if ($user->isBanned()) {
             return false;
         }
     }

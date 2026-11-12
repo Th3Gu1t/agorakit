@@ -30,7 +30,7 @@ class ParticipationController extends Controller
     {
         $this->authorize('participate', $event);
 
-        if($event->isRegistrationClosed(Carbon::now())) {
+        if ($event->isRegistrationClosed(Carbon::now())) {
             abort(404, trans('messages.registration_closed'));
         }
 
@@ -50,7 +50,7 @@ class ParticipationController extends Controller
     {
         $this->authorize('participate', $event);
 
-        if($event->isRegistrationClosed(Carbon::now())) {
+        if ($event->isRegistrationClosed(Carbon::now())) {
             abort(400, trans('messages.registration_closed'));
         }
 
