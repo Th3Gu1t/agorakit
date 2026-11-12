@@ -1,0 +1,58 @@
+name: Fork checks
+
+# Rules that only exist in this fork: commit format, separation between
+# fork-only files and application code, signed commits. See CLAUDE.md.
+
+on:
+  pull_request:
+    branches: [ "main" ]
+    types: [ opened, edited, reopened, synchronize ]
+
+permissions:
+  contents: read
+
+jobs:
+  commits:
+    runs-on: ubuntu-latest
+
+    env:
+      BASE_REF: origin/${{ github.base_ref }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 0
+
+    # Upstream commits do not follow the rules of the fork; knowing them lets
+    # the checks skip them when a pull request merges upstream changes.
+    - name: Fetch the upstream history
+      run: git fetch --no-tags https://github.com/agorakit/agorakit.git "+refs/heads/main:refs/remotes/upstream/main"
+
+    # The title becomes the subject of the merge commit.
+    - name: Check the pull request title
+      env:
+        PR_TITLE: ${{ github.event.pull_request.title }}
+      run: .github/fork/check-commits.sh --subject "$PR_TITLE"
+
+    - name: Check the commits
+      run: .github/fork/check-commits.sh "$BASE_REF" "$HEAD_SHA"
+
+    - name: Check that the commits are signed
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        status=0
+        for commit in $(.github/fork/check-commits.sh --list "$BASE_REF" "$HEAD_SHA"); do
+          title=$(git log -1 --format='%h %s' "$commit")
+          verified=$(gh api "repos/$GITHUB_REPOSITORY/commits/$commit" --jq '.commit.verification.verified')
+          if [ "$verified" = "true" ]; then
+            echo "ok    $title"
+          else
+            echo "FAIL  $title: GitHub does not see a verified signature"
+            status=1
+          fi
+        done
+        exit $status

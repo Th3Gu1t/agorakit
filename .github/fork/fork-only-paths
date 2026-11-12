@@ -1,0 +1,11 @@
+# Paths that exist only in this fork and are never proposed to the upstream
+# project. Read by .github/fork/check-commits.sh.
+#
+# One pattern per line. A trailing "/" matches a whole directory; anything
+# else is a shell glob matched against the full path from the repository root.
+CLAUDE.md
+.claude/
+.github/fork/
+.github/workflows/fork-*.yml
+.github/pull_request_template.md
+.github/ISSUE_TEMPLATE/change.md
