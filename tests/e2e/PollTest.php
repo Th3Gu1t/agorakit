@@ -517,6 +517,39 @@ class PollTest extends BaseTest
         $this->assertSame(0, PollVote::where('poll_id', $poll->id)->count());
     }
 
+    public function testDiscussionListFlagsOpenVotes()
+    {
+        $group = new Group();
+        $group->name = 'Group with two votes';
+        $group->body = 'One vote open, one closed';
+        $group->save();
+        Membership::create(['group_id' => $group->id, 'user_id' => $this->user('alice')->id, 'membership' => Membership::MEMBER]);
+
+        foreach (['Open vote here' => true, 'Closed vote here' => false] as $name => $open) {
+            $discussion = new Discussion(['name' => $name, 'body' => 'Let us decide.']);
+            $discussion->user()->associate($this->user('alice'));
+            $discussion->group()->associate($group);
+            $discussion->save();
+
+            $poll = new Poll(['type' => Poll::PROPOSAL, 'question' => $name . '?']);
+            $poll->user()->associate($this->user('alice'));
+            $discussion->polls()->save($poll);
+            if (!$open) {
+                $poll->close();
+            }
+        }
+
+        $this->actingAs($this->user('alice'))
+            ->visit(route('groups.discussions.index', $group))
+            ->see('Open vote here')
+            ->see('Closed vote here');
+
+        $badges = $this->crawler->filter('.poll-open-badge');
+        $this->assertCount(1, $badges);
+        $item = $badges->closest('[up-expand]');
+        $this->assertStringContainsString('Open vote here', $item->text());
+    }
+
     public function testProposalOptionsAreTranslated()
     {
         $poll = $this->createPoll('Translated options?');

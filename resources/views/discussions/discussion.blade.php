@@ -31,6 +31,7 @@
                     {{ dateForHumans($discussion->updated_at) }}
                 </div>
             </div>
+            @include('polls.badge')
             @if ($discussion->isPinned())
                 <div class="me-2">
                     <i class="fas fa-thumbtack" title="{{ __('Pinned') }}"></i>
