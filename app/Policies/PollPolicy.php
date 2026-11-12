@@ -50,4 +50,12 @@ class PollPolicy extends BasePolicy
     {
         return $this->close($user, $poll);
     }
+
+    /**
+     * Those who may close a vote may also delete it, for instance when it was started by mistake.
+     */
+    public function delete(User $user, Poll $poll)
+    {
+        return $this->close($user, $poll);
+    }
 }

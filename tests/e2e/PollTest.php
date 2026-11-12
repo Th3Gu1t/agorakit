@@ -8,6 +8,7 @@ use App\Mail\Notification as SummaryMail;
 use App\Membership;
 use App\Notifications\PollCreated;
 use App\Poll;
+use App\PollOption;
 use App\PollVote;
 use App\User;
 use Carbon\Carbon;
@@ -28,6 +29,8 @@ class PollTest extends BaseTest
 {
     private const GROUP = 'Voting group';
     private const NEIGHBOUR_GROUP = 'Neighbour group';
+    private const DELETE_WARNING = 'Its results and the vote of :count member are deleted for good.'
+        . '|Its results and the votes of :count members are deleted for good.';
     private const DISCUSSION = 'Should we buy a printer?';
 
     private function user(string $name): User
@@ -795,6 +798,61 @@ class PollTest extends BaseTest
         }
 
         $this->assertNull($poll->fresh()->outcome);
+    }
+
+    private function deleteConfirmPath(Poll $poll): string
+    {
+        return route('groups.discussions.polls.deleteconfirm', [$this->group(), $poll->discussion, $poll]);
+    }
+
+    public function testAuthorDeletesTheVote()
+    {
+        $poll = $this->discussionWithProposal('Deleted: started by mistake');
+        $this->actingAs($this->user('bob'))->post($this->votePath($poll), ['option' => $this->option($poll, 'agree')]);
+
+        $this->actingAs($this->user('alice'))
+            ->visit($this->showPath($poll))
+            ->click(__('Delete the vote'))
+            ->seePageIs($this->deleteConfirmPath($poll))
+            ->see('Deleted: started by mistake')
+            ->see(trans_choice(self::DELETE_WARNING, 1))
+            ->press(__('Delete the vote'))
+            ->see(__('The vote is deleted.'))
+            ->dontSeeElement('#poll-' . $poll->id);
+
+        $this->assertFalse(Poll::whereKey($poll->id)->exists());
+        $this->assertSame(0, PollOption::where('poll_id', $poll->id)->count());
+        $this->assertSame(0, PollVote::where('poll_id', $poll->id)->count());
+    }
+
+    public function testGroupAdminDeletesTheVote()
+    {
+        $poll = $this->discussionWithProposal('Deleted by an admin');
+
+        $this->actingAs($this->user('erin'))
+            ->delete(route('groups.discussions.polls.delete', [$this->group(), $poll->discussion, $poll]));
+
+        $this->assertFalse(Poll::whereKey($poll->id)->exists());
+    }
+
+    public function testOtherMembersCannotDeleteTheVote()
+    {
+        $poll = $this->discussionWithProposal('Not deleted by others');
+
+        $this->actingAs($this->user('bob'))
+            ->visit($this->showPath($poll))
+            ->dontSee(__('Delete the vote'));
+
+        foreach (['bob', 'dave'] as $name) {
+            $this->actingAs($this->user($name))
+                ->get($this->deleteConfirmPath($poll))
+                ->assertResponseStatus(403);
+            $this->actingAs($this->user($name))
+                ->delete(route('groups.discussions.polls.delete', [$this->group(), $poll->discussion, $poll]))
+                ->assertResponseStatus(403);
+        }
+
+        $this->assertTrue(Poll::whereKey($poll->id)->exists());
     }
 
     public function testProposalOptionsAreTranslated()

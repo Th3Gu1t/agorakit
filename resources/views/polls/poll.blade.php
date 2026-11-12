@@ -119,18 +119,28 @@
             </form>
         @endif
 
-        @if ($poll->isOpen())
-            @can('close', $poll)
-                <form action="{{ route('groups.discussions.polls.close', [$group, $discussion, $poll]) }}" class="mb-3"
-                    method="POST" up-confirm="{{ __('Close this vote now? Nobody will be able to vote anymore.') }}"
-                    up-target="#poll-{{ $poll->id }}">
-                    @csrf
-                    <button class="btn btn-outline-secondary btn-sm" type="submit">
-                        <i aria-hidden="true" class="fas fa-lock me-1"></i> {{ __('Close the vote') }}
-                    </button>
-                </form>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            @if ($poll->isOpen())
+                @can('close', $poll)
+                    <form action="{{ route('groups.discussions.polls.close', [$group, $discussion, $poll]) }}"
+                        method="POST" up-confirm="{{ __('Close this vote now? Nobody will be able to vote anymore.') }}"
+                        up-target="#poll-{{ $poll->id }}">
+                        @csrf
+                        <button class="btn btn-outline-secondary btn-sm" type="submit">
+                            <i aria-hidden="true" class="fas fa-lock me-1"></i> {{ __('Close the vote') }}
+                        </button>
+                    </form>
+                @endcan
+            @endif
+
+            @can('delete', $poll)
+                <a class="btn btn-link btn-sm text-danger"
+                    href="{{ route('groups.discussions.polls.deleteconfirm', [$group, $discussion, $poll]) }}"
+                    up-layer="new">
+                    <i aria-hidden="true" class="fa fa-trash me-1"></i> {{ __('Delete the vote') }}
+                </a>
             @endcan
-        @endif
+        </div>
 
         @if (!$poll->isOpen())
             @can('decide', $poll)

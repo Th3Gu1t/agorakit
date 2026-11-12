@@ -176,6 +176,40 @@ class PollController extends Controller
     }
 
     /**
+     * Ask for confirmation before deleting a vote.
+     */
+    public function destroyConfirm(Group $group, Discussion $discussion, Poll $poll)
+    {
+        $this->checkPoll($group, $discussion, $poll);
+        $this->authorize('delete', $poll);
+
+        return view('polls.delete')
+            ->with('group', $group)
+            ->with('discussion', $discussion)
+            ->with('poll', $poll)
+            ->with('tab', 'discussions');
+    }
+
+    /**
+     * Delete a vote, with its options and the votes of members.
+     */
+    public function destroy(Group $group, Discussion $discussion, Poll $poll)
+    {
+        $this->checkPoll($group, $discussion, $poll);
+        $this->authorize('delete', $poll);
+
+        DB::transaction(function () use ($poll) {
+            $poll->votes()->delete();
+            $poll->options()->delete();
+            $poll->delete();
+        });
+
+        flash(__('The vote is deleted.'));
+
+        return redirect()->route('groups.discussions.show', [$group, $discussion]);
+    }
+
+    /**
      * Options of a proposal: fixed, translated at display time.
      */
     private function proposalOptions(bool $allowBlock): array
