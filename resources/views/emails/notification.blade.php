@@ -39,6 +39,28 @@
 @endif
 
 
+@if ($polls->count() > 0)
+<h1>{{ __('Votes waiting for you') }}</h1>
+@foreach ($polls as $poll)
+<div class="poll" style="border-bottom: 1px solid #aaa; margin-bottom: 20px; padding-bottom: 20px">
+<strong><a href="{{ route('groups.discussions.show', [$group, $poll->discussion]) }}#poll-{{ $poll->id }}">{{ $poll->question }}</a></strong>
+<p>
+{{ __('In the discussion') }} "{{ $poll->discussion->name }}"<br/>
+@if ($poll->closes_at)
+{{ __('Closes on :date', ['date' => $poll->closes_at->isoFormat('LLL')]) }}
+@else
+{{ __('No closing date') }}
+@endif
+</p>
+
+@component('mail::button', ['url' => route('groups.discussions.show', [$group, $poll->discussion]) . '#poll-' . $poll->id])
+{{ __('Vote') }}
+@endcomponent
+</div>
+@endforeach
+@endif
+
+
 @if ($events->count() > 0)
 <h1>{{trans('messages.next_events')}}</h1>
 @foreach($events as $event)
