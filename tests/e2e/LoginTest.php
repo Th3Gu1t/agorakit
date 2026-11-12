@@ -17,6 +17,7 @@ class LoginTest extends BaseTest
 {
     private const ADMIN_EMAIL = 'admin@agorakit.local';
     private const ADMIN_PASSWORD = '123456789';
+    // A translation key: its misspelling is kept so that existing translations still match.
     private const LINK_SENT = 'Check your mailbox, we sent you a login link. It will expires in 30 minutes';
     private const DELETED_EMAIL = 'deleted@agorakit.local';
 
@@ -216,10 +217,34 @@ class LoginTest extends BaseTest
         Mail::fake();
 
         $this->visit('/login/email')
+            ->see('Send me a login link by email')
             ->type(self::ADMIN_EMAIL, 'email')
             ->press(__('Send me the link'))
-            ->see(self::LINK_SENT);
+            ->see('we sent you a login link. It will expire in 30 minutes');
 
         $this->assertStringContainsString('/autologin?', $this->loginLinkSentTo(self::ADMIN_EMAIL));
+    }
+
+    public function testLoginByEmailFormIsTranslated()
+    {
+        Mail::fake();
+
+        $this->visit('/login/email?force_locale=fr')
+            ->see('Recevoir un lien de connexion par email')
+            ->type(self::ADMIN_EMAIL, 'email')
+            ->press('Envoie-moi le lien')
+            ->see('nous vous avons envoyé un lien de connexion');
+    }
+
+    public function testLoginByEmailFormTranslatesUnknownAccountMessage()
+    {
+        Mail::fake();
+
+        $this->visit('/login/email?force_locale=fr')
+            ->type('nobody@agorakit.local', 'email')
+            ->press('Envoie-moi le lien')
+            ->see('Aucun utilisateur trouvé');
+
+        Mail::assertNothingSent();
     }
 }
