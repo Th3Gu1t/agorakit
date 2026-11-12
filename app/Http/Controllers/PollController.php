@@ -77,6 +77,7 @@ class PollController extends Controller
                 'type' => $request->input('type'),
                 'question' => $request->input('question'),
                 'body' => $request->input('body'),
+                'secret' => $request->boolean('secret'),
                 'closes_at' => $closesAt,
             ]);
             $poll->user()->associate(Auth::user());
@@ -126,7 +127,8 @@ class PollController extends Controller
             'poll_id' => $poll->id,
             'user_id' => Auth::id(),
             'poll_option_id' => (int) $request->input('option'),
-            'reason' => $request->filled('reason') ? $request->input('reason') : null,
+            // a secret vote shows no reason: none is kept
+            'reason' => $request->filled('reason') && !$poll->secret ? $request->input('reason') : null,
         ]], ['poll_id', 'user_id'], ['poll_option_id', 'reason', 'updated_at']);
 
         flash(__('Your vote is recorded.'));

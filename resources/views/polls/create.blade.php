@@ -65,6 +65,17 @@
                 <div class="form-text">{{ __('At least two options.') }}</div>
             </div>
 
+            <div class="mb-3">
+                <div class="form-check">
+                    <input @checked(old('secret')) class="form-check-input" id="secret" name="secret" type="checkbox"
+                        value="1">
+                    <label class="form-check-label" for="secret">{{ __('Secret vote') }}</label>
+                </div>
+                <div class="form-text">
+                    {{ __('Results are shown, but nobody can see who voted what. Agorakit keeps each vote with its member, so that members can change their vote, and never shows it.') }}
+                </div>
+            </div>
+
             <div class="row mb-1">
                 <div class="col-sm-6 mb-2">
                     <label class="form-label" for="closes_at_date">{{ __('Closing date (optional)') }}</label>

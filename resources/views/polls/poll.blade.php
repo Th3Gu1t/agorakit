@@ -26,6 +26,9 @@
             @else
                 {{ __('Choice') }}
             @endif
+            @if ($poll->secret)
+                · <i aria-hidden="true" class="fas fa-user-secret"></i> {{ __('Secret vote') }}
+            @endif
             · {{ __('Started by :name', ['name' => $poll->user->name]) }}
             · {{ dateForHumans($poll->created_at) }}
             ·
@@ -98,8 +101,10 @@
                     @endforeach
                 </fieldset>
 
-                <label class="form-label mt-2" for="poll-{{ $poll->id }}-reason">{{ __('Reason (optional)') }}</label>
-                <textarea class="form-control" id="poll-{{ $poll->id }}-reason" name="reason" rows="2">{{ $myVote?->reason }}</textarea>
+                @unless ($poll->secret)
+                    <label class="form-label mt-2" for="poll-{{ $poll->id }}-reason">{{ __('Reason (optional)') }}</label>
+                    <textarea class="form-control" id="poll-{{ $poll->id }}-reason" name="reason" rows="2">{{ $myVote?->reason }}</textarea>
+                @endunless
 
                 <button class="btn btn-primary mt-2" type="submit">
                     {{ $myVote ? __('Change my vote') : __('Vote') }}
@@ -120,8 +125,8 @@
             @endcan
         @endif
 
-        {{-- Who voted what, and why --}}
-        @if ($votes->count() > 0)
+        {{-- Who voted what, and why: never for a secret vote --}}
+        @if ($votes->count() > 0 && !$poll->secret)
             <details class="mb-2">
                 <summary>{{ __('Votes and reasons') }} ({{ $votes->count() }})</summary>
                 <ul class="list-unstyled mt-2 mb-0">

@@ -688,6 +688,45 @@ class PollTest extends BaseTest
         $this->assertNull($this->summarySentTo('erin'));
     }
 
+    public function testMemberStartsASecretVote()
+    {
+        $this->actingAs($this->user('alice'))
+            ->visit($this->createPath())
+            ->select('proposal', 'type')
+            ->type('We elect Carol as treasurer', 'question')
+            ->check('secret')
+            ->press(__('Start the vote'))
+            ->see(__('Secret vote'));
+
+        $this->assertTrue(Poll::where('question', 'We elect Carol as treasurer')->firstOrFail()->secret);
+    }
+
+    public function testSecretVoteShowsResultsButNotWhoVotedWhat()
+    {
+        $poll = $this->discussionWithProposal('Secret: we elect Bob');
+        $poll->secret = true;
+        $poll->save();
+
+        $this->actingAs($this->user('bob'))
+            ->visit($this->showPath($poll))
+            ->dontSeeElement('textarea[name="reason"]')
+            ->select($this->option($poll, 'agree'), 'option')
+            ->press(__('Vote'))
+            ->see(__('your vote'));
+        // a reason sent anyway is not kept
+        $this->actingAs($this->user('carol'))
+            ->post($this->votePath($poll), ['option' => $this->option($poll, 'disagree'), 'reason' => 'Carol says no']);
+
+        foreach (['erin', 'alice'] as $name) {
+            $this->actingAs($this->user($name))
+                ->visit($this->showPath($poll))
+                ->see(trans_choice(':count vote|:count votes', 1) . ' · 50 %')
+                ->dontSee(__('Votes and reasons'))
+                ->dontSee('Carol says no');
+        }
+        $this->assertNull(PollVote::where('poll_id', $poll->id)->where('user_id', $this->user('carol')->id)->first()->reason);
+    }
+
     public function testProposalOptionsAreTranslated()
     {
         $poll = $this->createPoll('Translated options?');
