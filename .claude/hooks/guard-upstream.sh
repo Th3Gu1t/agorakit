@@ -8,8 +8,12 @@
 #
 #   - denies a command that would write to a repository of the upstream
 #     organisation, or that leaves its GitHub target implicit;
-#   - asks the human before a pull request is merged or before the settings
-#     and protections of a repository are changed.
+#   - asks the human before the settings or the protections of a repository
+#     are changed.
+#
+# Merging a pull request of the fork is allowed: the maintainer delegated it
+# (CLAUDE.md, "Fork policy"). A merge in the upstream project is denied above,
+# with every other write there.
 #
 # It matches on the text of the command: it catches mistakes, it is not a
 # security boundary. Reading from upstream (fetch, view, list, search) is
@@ -104,13 +108,6 @@ if $gh_api_write; then
     if matches '/(branches/[^[:space:]]+/protection|rulesets)'; then
         decide ask "This changes the branch protections of a repository. That is the maintainer's decision."
     fi
-    if matches '/pulls/[0-9]+/merge'; then
-        decide ask "Merging a pull request is the maintainer's decision."
-    fi
-fi
-
-if matches "${GH}pr${S}merge([[:space:]]|\$)"; then
-    decide ask "Merging a pull request is the maintainer's decision."
 fi
 
 exit 0

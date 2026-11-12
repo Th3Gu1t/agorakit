@@ -86,4 +86,6 @@ In the description (French, following the template): the notable upstream
 changes, the conflicts and how they were resolved, and what the maintainer
 must do when deploying (migrations, new settings, new environment variables).
 
-The maintainer merges.
+Merge it once CI is green, with a merge commit, unless the deployment notes
+need the maintainer's attention first (new migrations that change existing
+data, new required settings): then leave it open and say so.

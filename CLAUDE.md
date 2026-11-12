@@ -25,16 +25,19 @@ decision from the maintainer.
   issues, pull requests or commit messages of the fork: no
   `agorakit/agorakit#123`, no URL. GitHub posts a visible backlink on the
   upstream item. Write "upstream issue 123" in plain text.
-- **The maintainer merges.** Never merge a pull request, push to `main`, or
-  change repository settings and branch protections without being asked to.
+- **Merging is delegated.** Merge the pull requests of the fork once their CI
+  is green (the maintainer's decision of 2026-11-12). Never push to `main`
+  directly, and never change repository settings or branch protections
+  without being asked to.
 - **AGPL-3.0**: everything derived from this code stays under AGPL-3.0, and
   the source of what is deployed must be public. Do not add code or assets
   under an incompatible licence.
 
 A Claude Code hook (`.claude/hooks/guard-upstream.sh`) denies pushes and
 GitHub writes that target upstream or leave their target implicit, and asks
-the maintainer before a merge or a change of repository settings. It is a
-safety net for mistakes: follow the rules even where the hook cannot see.
+the maintainer before a change of repository settings or branch protections.
+It is a safety net for mistakes: follow the rules even where the hook cannot
+see.
 
 ## Fork-only files
 
@@ -64,7 +67,13 @@ so the change stays proposable.
    `Closes #<issue>`. Open it as a draft while it is not ready.
 6. **CI** must be green: `PHP Composer` (tests) and `Fork checks` (commits
    and coding standard).
-7. The maintainer reviews and merges, with a merge commit.
+7. **Merge** with a merge commit:
+   `gh pr merge <number> --repo Th3Gu1t/agorakit --merge`. Merge pull
+   requests that depend on another one after it.
+8. The maintainer reviews when they can, before or after the merge: the
+   description must let them do it alone. Leave a pull request open for them,
+   and say why in its description, when it carries a decision that is theirs:
+   a product choice, a change of data or anything that affects deployment.
 
 ## Commits
 
