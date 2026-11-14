@@ -118,9 +118,21 @@ class EnvironmentForm
     {
         return match ($field['key']) {
             'APP_URL' => $this->siteUrl(),
+            'SOURCE_URL' => $this->releaseRepository(),
             'APP_DEFAULT_LOCALE' => array_key_exists($this->locale, EnvironmentSchema::LOCALES) ? $this->locale : 'en',
             default => (string) ($field['default'] ?? ''),
         };
+    }
+
+    /**
+     * The repository a release archive was built from, as its VERSION file records it.
+     */
+    private function releaseRepository(): string
+    {
+        $lines = @file($this->file->directory() . '/VERSION', FILE_IGNORE_NEW_LINES) ?: [];
+        $url = trim((string) ($lines[2] ?? ''));
+
+        return filter_var($url, FILTER_VALIDATE_URL) ? $url : '';
     }
 
     /**

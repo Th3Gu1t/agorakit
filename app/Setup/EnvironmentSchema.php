@@ -49,6 +49,11 @@ class EnvironmentSchema
                         'help' => 'For instance https://agora.example.org, without a slash at the end.',
                     ],
                     [
+                        'key' => 'SOURCE_URL', 'label' => 'Address of the source code', 'type' => self::URL,
+                        'help' => 'Agorakit is under the AGPL licence: the visitors of a modified version must be able '
+                            . 'to get its source code. The footer of the site links to this address.',
+                    ],
+                    [
                         'key' => 'APP_DEFAULT_LOCALE', 'label' => 'Default language', 'type' => self::SELECT, 'default' => 'en',
                         'options' => self::LOCALES,
                         'help' => 'Used when the language of a visitor cannot be detected.',

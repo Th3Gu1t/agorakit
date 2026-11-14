@@ -10,7 +10,9 @@
 # - the tracked files of the revision, as "git archive" exports them, minus
 #   what only serves development (tests, Docker, guides for AI assistants);
 # - vendor/, from "composer install --no-dev" against composer.lock;
-# - VERSION, naming the version and the commit it was built from.
+# - VERSION, naming the version, the commit it was built from and the
+#   repository, which the setup page proposes as the address of the source
+#   code of the site (AGPL).
 # It holds no .env, no setup.lock and no user data: unpacking it over an
 # installation keeps its configuration and its files.
 
@@ -52,7 +54,13 @@ echo "Installing the dependencies"
 composer install --working-dir="$work/$name" --no-dev --prefer-dist --optimize-autoloader \
     --no-interaction --no-progress
 
-printf '%s\n%s\n' "$version" "$commit" > "$work/$name/VERSION"
+# On GitHub Actions, the repository being built; elsewhere, the origin remote.
+repository=${GITHUB_SERVER_URL:+$GITHUB_SERVER_URL/$GITHUB_REPOSITORY}
+if [[ -z $repository ]]; then
+    repository=$(git -C "$root" remote get-url origin \
+        | sed -E 's#^(git@|ssh://git@)github\.com[:/]#https://github.com/#; s#\.git$##')
+fi
+printf '%s\n%s\n%s\n' "$version" "$commit" "$repository" > "$work/$name/VERSION"
 
 echo "Packing $output/$name.zip"
 rm -f "$output/$name.zip"
