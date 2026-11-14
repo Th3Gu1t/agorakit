@@ -19,6 +19,14 @@ class EnvironmentFile
     {
     }
 
+    /**
+     * The folder of the file: the root of the installation.
+     */
+    public function directory(): string
+    {
+        return dirname($this->path);
+    }
+
     public function exists(): bool
     {
         return is_file($this->path);

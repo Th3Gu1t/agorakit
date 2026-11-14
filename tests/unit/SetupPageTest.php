@@ -231,6 +231,17 @@ class SetupPageTest extends TestCase
         $this->assertStringContainsString('value="localhost"', $body);
     }
 
+    public function testSourceAddressComesFromTheRelease()
+    {
+        file_put_contents($this->dir . '/VERSION', "v1.11.4-fork.1\n0123abcd\nhttps://github.com/example/agorakit\n");
+        $this->signIn();
+
+        $body = $this->get(['step' => 'environment'])->body;
+
+        $this->assertStringContainsString('name="env[SOURCE_URL]"', $body);
+        $this->assertStringContainsString('value="https://github.com/example/agorakit"', $body);
+    }
+
     public function testConfigurationIsWrittenOnceTheDatabaseAnswers()
     {
         $this->signIn();
