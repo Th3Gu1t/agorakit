@@ -119,9 +119,25 @@ $statusNames = ['ok' => $t('OK'), 'warning' => $t('Warning'), 'error' => $t('Err
     <p><code>php <?= $e($artisan) ?> schedule:run</code></p>
 </div>
 
+<?php
+$unfinished = [];
+if (!$configured) {
+    $unfinished[] = $t('There is no configuration yet.');
+} elseif (!$ready) {
+    $unfinished[] = $t('The database cannot be reached.');
+} elseif ($pending) {
+    $unfinished[] = $t('Migrations are still to run.');
+} elseif ($admins === 0) {
+    $unfinished[] = $t('There is no administrator account yet.');
+}
+?>
 <div class="card">
     <h2><?= $e($t('Finish and lock')) ?></h2>
     <p><?= $e($t('When everything above is done, lock this page. It writes the file setup.lock at the root of Agorakit; delete that file to open the page again.')) ?></p>
+    <p class="muted"><?= $e($t('Locking also clears the caches of Agorakit, which an upgrade needs.')) ?></p>
+    <?php foreach ($unfinished as $warning): ?>
+        <div class="flash warning" role="status"><?= $e($warning) ?></div>
+    <?php endforeach; ?>
     <form method="post" action="<?= $e($self) ?>">
         <input type="hidden" name="_token" value="<?= $e($token) ?>">
         <input type="hidden" name="action" value="lock">

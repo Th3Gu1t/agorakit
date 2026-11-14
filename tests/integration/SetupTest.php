@@ -184,4 +184,17 @@ class SetupTest extends BrowserKitTestCase
         $this->assertFalse(User::where('email', 'intruder@example.org')->exists());
         $this->assertStringContainsString('An administrator account exists already.', $this->request('GET')->body);
     }
+
+    public function testLockClearsTheCompiledViews()
+    {
+        $compiled = storage_path('framework/views/setup-test-compiled.php');
+        file_put_contents($compiled, '<?php // an outdated compiled view');
+        $this->signIn();
+
+        $response = $this->request('POST', ['action' => 'lock']);
+
+        $this->assertSame(200, $response->status);
+        $this->assertFileExists($this->dir . '/setup.lock');
+        $this->assertFileDoesNotExist($compiled);
+    }
 }

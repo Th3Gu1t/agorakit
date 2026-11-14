@@ -355,6 +355,17 @@ class SetupPage
 
     private function lock(): SetupResponse
     {
+        // After an upgrade, cached configuration, routes and compiled views would
+        // still be those of the previous version: clear them, as "php artisan
+        // optimize:clear" does. A site that cannot start yet has nothing cached.
+        if ($this->environment->exists() && EnvironmentForm::databaseError($this->environment->values()) === null) {
+            try {
+                $this->console()->call('optimize:clear');
+            } catch (Throwable $e) {
+                // locking matters more than clearing the caches
+            }
+        }
+
         try {
             $this->guard->lock();
         } catch (RuntimeException $e) {

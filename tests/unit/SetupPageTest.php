@@ -308,6 +308,16 @@ class SetupPageTest extends TestCase
         $this->assertSame('kept', $written['CUSTOM_OPTION']);
     }
 
+    public function testLockWarnsAboutWhatIsNotFinished()
+    {
+        $this->signIn();
+
+        $this->assertStringContainsString('There is no configuration yet.', $this->get()->body);
+
+        file_put_contents($this->dir . '/.env', "DB_HOST=127.0.0.1\nDB_PASSWORD=wrong\n");
+        $this->assertStringContainsString('The database cannot be reached.', $this->get()->body);
+    }
+
     public function testPageSpeaksTheLanguageOfTheBrowser()
     {
         $french = $this->get([], ['HTTP_ACCEPT_LANGUAGE' => 'de-DE,fr;q=0.8,en;q=0.5']);
