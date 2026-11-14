@@ -1,16 +1,32 @@
 <?php
 $statusNames = ['ok' => $t('OK'), 'warning' => $t('Warning'), 'error' => $t('Error')];
 ?>
+<?php
+$attention = array_filter($checks, fn ($check) => $check['status'] !== 'ok');
+$checkItem = function (array $check) use ($e, $t, $statusNames): string {
+    return '<li><span class="status ' . $e($check['status']) . '">' . $e($statusNames[$check['status']]) . '</span> '
+        . $e($t($check['label'], $check['replace'] ?? [])) . '</li>';
+};
+?>
 <div class="card">
     <h2><?= $e($t('Server')) ?></h2>
-    <ul class="checks">
-        <?php foreach ($checks as $check): ?>
-            <li>
-                <span class="status <?= $e($check['status']) ?>"><?= $e($statusNames[$check['status']]) ?></span>
-                <?= $e($t($check['label'], $check['replace'] ?? [])) ?>
-            </li>
-        <?php endforeach; ?>
-    </ul>
+    <?php if ($attention): ?>
+        <ul class="checks">
+            <?php foreach ($attention as $check): ?>
+                <?= $checkItem($check) ?>
+            <?php endforeach; ?>
+        </ul>
+    <?php else: ?>
+        <p><?= $e($t('The server offers everything Agorakit needs.')) ?></p>
+    <?php endif; ?>
+    <details>
+        <summary><?= $e($t('All the checks (:count)', ['count' => count($checks)])) ?></summary>
+        <ul class="checks">
+            <?php foreach ($checks as $check): ?>
+                <?= $checkItem($check) ?>
+            <?php endforeach; ?>
+        </ul>
+    </details>
 </div>
 
 <div class="card">
