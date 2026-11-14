@@ -173,7 +173,8 @@ class SetupPageTest extends TestCase
         $body = $this->get()->body;
 
         $this->assertStringContainsString('PHP extension pdo_mysql', $body);
-        $this->assertStringContainsString(dirname(__DIR__, 2) . '/artisan schedule:run', $body);
+        $this->assertStringContainsString(dirname(__DIR__, 2) . '/public/cron.php', $body);
+        $this->assertStringContainsString('Save the configuration to create this address.', $body);
     }
 
     /**
@@ -270,6 +271,18 @@ class SetupPageTest extends TestCase
         $this->assertStringContainsString('The database cannot be reached with these options', $response->body);
         $this->assertStringNotContainsString('not-the-password', $response->body);
         $this->assertFileDoesNotExist($this->dir . '/.env');
+    }
+
+    public function testWebCronAddressAppearsOnceConfigured()
+    {
+        $this->signIn();
+        $this->post(['action' => 'environment', 'env' => $this->validOptions()]);
+
+        $token = $this->written()['CRON_TOKEN'];
+        $this->assertStringContainsString(
+            'https://agora.example.org/cron.php?token=' . $token,
+            $this->get()->body
+        );
     }
 
     public function testWrongOptionsAreReportedOneByOne()

@@ -71,6 +71,17 @@ class SetupEnvironmentTest extends TestCase
         $this->assertSame($key, $this->file()->values()['APP_KEY']);
     }
 
+    public function testCronTokenIsGeneratedOnceThenKept()
+    {
+        $this->file()->write(['APP_NAME' => 'First']);
+        $token = $this->file()->values()['CRON_TOKEN'];
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{40}$/', $token);
+
+        $this->file()->write(['APP_NAME' => 'Second']);
+
+        $this->assertSame($token, $this->file()->values()['CRON_TOKEN']);
+    }
+
     public function testUnknownOptionsAreKeptAndTheOldFileBackedUp()
     {
         file_put_contents($this->dir . '/.env', "APP_NAME=Old\nAPP_KEY=base64:kept\nCUSTOM_OPTION=\"kept value\"\n");

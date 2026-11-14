@@ -138,6 +138,12 @@ class SetupPage
         $output = $this->session['output'] ?? null;
         unset($this->session['output']);
 
+        // the address a web cron service calls, once the .env file has its token
+        $values = $configured ? $this->environment->values() : [];
+        $cronUrl = ($values['CRON_TOKEN'] ?? '') !== '' && ($values['APP_URL'] ?? '') !== ''
+            ? rtrim($values['APP_URL'], '/') . '/cron.php?token=' . $values['CRON_TOKEN']
+            : null;
+
         return $this->render('overview', [
             'checks' => (new Requirements($this->basePath, $this->server))->check(),
             'configured' => $configured,
@@ -148,7 +154,8 @@ class SetupPage
             'admins' => $admins,
             'adminForm' => $adminForm,
             'output' => $output,
-            'artisan' => $this->basePath . '/artisan',
+            'cronUrl' => $cronUrl,
+            'cronFile' => $this->basePath . '/public/cron.php',
         ]);
     }
 
