@@ -12,6 +12,9 @@ Thumbs.db
 .env
 .env.local
 .env.dev
+.env.backup
+setup.key
+setup.lock
 phpstan.neon
 node_modules
 public/hot
