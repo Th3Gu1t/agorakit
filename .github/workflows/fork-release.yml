@@ -1,0 +1,76 @@
+name: Fork release
+
+# Publishes a release of the fork when a version tag is pushed, for instance
+# v1.11.4-fork.1: the upstream version it is based on, then the number of the
+# fork release. The release holds a ZIP archive of the code with its PHP
+# dependencies, for hosts without SSH, and notes listing the merged pull
+# requests. See CLAUDE.md, "Releases".
+#
+# On a pull request that changes the release tooling, the archive is built
+# and kept as a workflow artifact, without publishing anything.
+
+on:
+  push:
+    tags: [ "v*-fork.*" ]
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - ".github/fork/build-release.sh"
+      - ".github/fork/release-notes.sh"
+      - ".github/workflows/fork-release.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        tools: composer:v2
+
+    # The whole history and the tags, to find the previous release.
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Name the version
+      env:
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+          echo "VERSION=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+        else
+          echo "VERSION=pr$PR_NUMBER-$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+        fi
+
+    - name: Build the archive
+      run: .github/fork/build-release.sh "$VERSION" HEAD dist
+
+    - name: Write the release notes
+      run: .github/fork/release-notes.sh "$VERSION" HEAD > dist/notes.md
+
+    - name: Keep the trial archive
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: agorakit-${{ env.VERSION }}
+        path: dist/
+        retention-days: 7
+
+    - name: Publish the release
+      if: github.event_name == 'push'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release create "$VERSION" \
+          "dist/agorakit-$VERSION.zip" "dist/agorakit-$VERSION.zip.sha256" \
+          --repo "$GITHUB_REPOSITORY" \
+          --title "Agorakit $VERSION" \
+          --notes-file dist/notes.md \
+          --verify-tag
