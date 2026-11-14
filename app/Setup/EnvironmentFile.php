@@ -9,9 +9,9 @@ use RuntimeException;
 /**
  * Reads and writes the .env file of the installation.
  *
- * Writing keeps the options the setup page does not know, keeps APP_KEY or
- * generates it, and quotes values so that Laravel reads back exactly what was
- * written. The previous file is kept as .env.backup.
+ * Writing keeps the options the setup page does not know, keeps APP_KEY and
+ * CRON_TOKEN or generates them, and quotes values so that Laravel reads back
+ * exactly what was written. The previous file is kept as .env.backup.
  */
 class EnvironmentFile
 {
@@ -61,6 +61,9 @@ class EnvironmentFile
         }
         if (($values['APP_KEY'] ?? '') === '') {
             $values['APP_KEY'] = self::generateKey();
+        }
+        if (($values['CRON_TOKEN'] ?? '') === '') {
+            $values['CRON_TOKEN'] = bin2hex(random_bytes(20));
         }
 
         $content = self::render($values);
@@ -116,6 +119,9 @@ class EnvironmentFile
         $lines[] = '# Encryption key: changing it logs everyone out and makes encrypted data unreadable';
         $lines[] = 'APP_KEY=' . self::quote($values['APP_KEY'] ?? '');
         $written['APP_KEY'] = true;
+        $lines[] = '# Secret of the address a web cron service calls: <APP_URL>/cron.php?token=<CRON_TOKEN>';
+        $lines[] = 'CRON_TOKEN=' . self::quote($values['CRON_TOKEN'] ?? '');
+        $written['CRON_TOKEN'] = true;
 
         $others = array_diff_key($values, $written);
         if ($others) {

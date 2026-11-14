@@ -131,8 +131,24 @@ $checkItem = function (array $check) use ($e, $t, $statusNames): string {
 
 <div class="card">
     <h2><?= $e($t('Scheduled tasks')) ?></h2>
-    <p><?= $e($t('Agorakit sends its email summaries and reminders, and cleans up, through a task the server must run every few minutes. In the control panel of your host, create a scheduled task (cron) that runs this command every 5 minutes:')) ?></p>
-    <p><code>php <?= $e($artisan) ?> schedule:run</code></p>
+    <p><?= $e($t('Agorakit sends its email summaries and event reminders, and cleans up, through tasks that must run regularly. Set up one of these ways; using two of them does no harm, a task never runs twice.')) ?></p>
+
+    <h3><?= $e($t('A web cron service (recommended on shared hosting)')) ?></h3>
+    <p><?= $e($t('A free service such as cron-job.org calls this address every 5 minutes; summaries and reminders then leave on time.')) ?></p>
+    <?php if ($cronUrl): ?>
+        <p><code><?= $e($cronUrl) ?></code></p>
+        <p class="muted"><?= $e($t('Keep this address to yourself: it contains the CRON_TOKEN of the .env file. Without it, the page answers 404 and runs nothing.')) ?></p>
+    <?php else: ?>
+        <p class="muted"><?= $e($t('Save the configuration to create this address.')) ?></p>
+    <?php endif; ?>
+
+    <h3><?= $e($t('The scheduled tasks of your host')) ?></h3>
+    <p><?= $e($t('For instance on OVH web hosting, in "Scheduled tasks - CRON": run this file every hour, with PHP 8.2 or later, giving its path from the root of your FTP space (such as www/agorakit/public/cron.php). Summaries and reminders may then leave up to an hour late.')) ?></p>
+    <p><code><?= $e($cronFile) ?></code></p>
+
+    <h3><?= $e($t('A crontab')) ?></h3>
+    <p><?= $e($t('If your host offers a real crontab, run this command every minute from the folder of Agorakit:')) ?></p>
+    <p><code>php artisan schedule:run</code></p>
 </div>
 
 <?php

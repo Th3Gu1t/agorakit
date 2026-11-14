@@ -21,4 +21,6 @@ return [
   'data_retention' => env('DATA_RETENTION', 30),
   // address of the source code of this instance, linked from the footer (AGPL)
   'source_url' => env('SOURCE_URL'),
+  // secret that lets a web cron service call public/cron.php
+  'cron_token' => env('CRON_TOKEN'),
 ];
