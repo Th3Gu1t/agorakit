@@ -18,5 +18,7 @@ return [
   'onlyoffice_url' => env('ONLYOFFICE_URL'),
   'max_file_size' => env('MAX_FILE_SIZE', 10000),
   'reactions' => ['plusone', 'minusone', 'laugh', 'confused', 'heart', 'hooray', 'rocket', 'eyes'],
-  'data_retention' => env('DATA_RETENTION', 30)
+  'data_retention' => env('DATA_RETENTION', 30),
+  // address of the source code of this instance, linked from the footer (AGPL)
+  'source_url' => env('SOURCE_URL'),
 ];
