@@ -2,11 +2,15 @@
 
 namespace App\Setup;
 
+use Closure;
+use Illuminate\Container\Container;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Translation\FileLoader;
 use Illuminate\Translation\Translator;
 use InvalidArgumentException;
 use RuntimeException;
+use Throwable;
 
 /**
  * The setup page, /setup.php: installs or upgrades Agorakit from a browser,
@@ -36,14 +40,18 @@ class SetupPage
      */
     private array $session;
 
+    private ?Kernel $kernel = null;
+
     /**
      * @param array<string, mixed> $session
+     * @param Closure(): Kernel $console starts Laravel with the .env file and returns its console kernel
      */
     public function __construct(
         private string $basePath,
         private SetupGuard $guard,
         private EnvironmentFile $environment,
         array &$session,
+        private ?Closure $console = null,
     ) {
         $this->session = &$session;
     }
@@ -90,6 +98,7 @@ class SetupPage
         if ($method === 'POST') {
             return match ($post['action'] ?? '') {
                 'environment' => $this->saveEnvironment((array) ($post['env'] ?? [])),
+                'migrate' => $this->migrate(),
                 'lock' => $this->lock(),
                 default => $this->redirect(),
             };
@@ -107,13 +116,83 @@ class SetupPage
     private function overview(): SetupResponse
     {
         $configured = $this->environment->exists();
+        $databaseError = $configured ? EnvironmentForm::databaseError($this->environment->values()) : null;
+        $ready = $configured && $databaseError === null;
+
+        $pending = null;
+        $applicationError = null;
+        if ($ready) {
+            try {
+                $pending = $this->pendingMigrations();
+            } catch (Throwable $e) {
+                $applicationError = $e->getMessage();
+            }
+        }
+
+        $output = $this->session['output'] ?? null;
+        unset($this->session['output']);
 
         return $this->render('overview', [
             'checks' => (new Requirements($this->basePath, $this->server))->check(),
             'configured' => $configured,
-            'databaseError' => $configured ? EnvironmentForm::databaseError($this->environment->values()) : null,
+            'databaseError' => $databaseError,
+            'ready' => $ready,
+            'applicationError' => $applicationError,
+            'pending' => $pending,
+            'output' => $output,
             'artisan' => $this->basePath . '/artisan',
         ]);
+    }
+
+    /**
+     * Laravel, started with the .env file. Only once the configuration works.
+     */
+    private function console(): Kernel
+    {
+        if (!$this->kernel) {
+            if (!$this->console) {
+                throw new RuntimeException('The setup page cannot start Laravel.');
+            }
+            $this->kernel = ($this->console)();
+        }
+
+        return $this->kernel;
+    }
+
+    /**
+     * Names of the migrations not run yet, all of them in an empty database.
+     *
+     * @return list<string>
+     */
+    private function pendingMigrations(): array
+    {
+        $this->console();
+        $migrator = Container::getInstance()->make('migrator');
+        $paths = array_merge($migrator->paths(), [$this->basePath . '/database/migrations']);
+        $files = array_keys($migrator->getMigrationFiles($paths));
+        $ran = $migrator->repositoryExists() ? $migrator->getRepository()->getRan() : [];
+
+        return array_values(array_diff($files, $ran));
+    }
+
+    /**
+     * Runs the migrations, as "php artisan migrate --force" does, and shows what it printed.
+     */
+    private function migrate(): SetupResponse
+    {
+        try {
+            $status = $this->console()->call('migrate', ['--force' => true]);
+            $this->session['output'] = trim($this->console()->output());
+        } catch (Throwable $e) {
+            $this->flash('error', 'The migrations failed: :error', ['error' => $e->getMessage()]);
+            return $this->redirect();
+        }
+
+        $status === 0
+            ? $this->flash('success', 'The database is up to date.')
+            : $this->flash('error', 'The migrations failed: :error', ['error' => 'exit code ' . $status]);
+
+        return $this->redirect();
     }
 
     /**

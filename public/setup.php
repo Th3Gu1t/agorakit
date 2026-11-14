@@ -33,11 +33,23 @@ session_set_cookie_params([
 ]);
 session_start();
 
+// Starts Laravel, only for the actions that need the configured application.
+$console = function () use ($basePath): Illuminate\Contracts\Console\Kernel {
+    // a cached configuration would hide the .env file the page just wrote
+    @unlink($basePath . '/bootstrap/cache/config.php');
+    $app = require $basePath . '/bootstrap/app.php';
+    $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+    $kernel->bootstrap();
+
+    return $kernel;
+};
+
 $page = new App\Setup\SetupPage(
     $basePath,
     App\Setup\SetupGuard::forInstallation($basePath),
     new App\Setup\EnvironmentFile($basePath . '/.env'),
-    $_SESSION
+    $_SESSION,
+    $console
 );
 $response = $page->handle($_SERVER['REQUEST_METHOD'] ?? 'GET', $_GET, $_POST, $_SERVER);
 

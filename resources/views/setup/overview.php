@@ -38,6 +38,43 @@ $statusNames = ['ok' => $t('OK'), 'warning' => $t('Warning'), 'error' => $t('Err
     <?php endif; ?>
 </div>
 
+<?php if ($ready): ?>
+    <div class="card">
+        <h2><?= $e($t('Database')) ?></h2>
+        <?php if ($applicationError !== null): ?>
+            <div class="flash error" role="alert"><?= $e($t('Agorakit cannot start: :error', ['error' => $applicationError])) ?></div>
+        <?php elseif ($pending === []): ?>
+            <ul class="checks">
+                <li>
+                    <span class="status ok"><?= $e($t('OK')) ?></span>
+                    <?= $e($t('The database is up to date')) ?>
+                </li>
+            </ul>
+        <?php else: ?>
+            <p><?= $e($t('Migrations to run, which create or change the tables of the database: :count.', ['count' => count($pending)])) ?></p>
+            <details>
+                <summary><?= $e($t('Show them')) ?></summary>
+                <ul>
+                    <?php foreach ($pending as $migration): ?>
+                        <li><code><?= $e($migration) ?></code></li>
+                    <?php endforeach; ?>
+                </ul>
+            </details>
+            <p class="muted"><?= $e($t('For an upgrade, make a copy of the database first, from the control panel of your host.')) ?></p>
+            <form method="post" action="<?= $e($self) ?>">
+                <input type="hidden" name="_token" value="<?= $e($token) ?>">
+                <input type="hidden" name="action" value="migrate">
+                <button type="submit"><?= $e($t('Run the migrations')) ?></button>
+            </form>
+        <?php endif; ?>
+
+        <?php if ($output): ?>
+            <h3><?= $e($t('Last output')) ?></h3>
+            <pre><?= $e($output) ?></pre>
+        <?php endif; ?>
+    </div>
+<?php endif; ?>
+
 <div class="card">
     <h2><?= $e($t('Scheduled tasks')) ?></h2>
     <p><?= $e($t('Agorakit sends its email summaries and reminders, and cleans up, through a task the server must run every few minutes. In the control panel of your host, create a scheduled task (cron) that runs this command every 5 minutes:')) ?></p>
