@@ -159,6 +159,16 @@ class SetupPageTest extends TestCase
         $this->assertStringContainsString('cannot write the file setup.key', $response->body);
     }
 
+    public function testSignedInPageShowsTheServerAndTheScheduledTask()
+    {
+        $this->signIn();
+
+        $body = $this->get()->body;
+
+        $this->assertStringContainsString('PHP extension pdo_mysql', $body);
+        $this->assertStringContainsString(dirname(__DIR__, 2) . '/artisan schedule:run', $body);
+    }
+
     public function testPageSpeaksTheLanguageOfTheBrowser()
     {
         $french = $this->get([], ['HTTP_ACCEPT_LANGUAGE' => 'de-DE,fr;q=0.8,en;q=0.5']);

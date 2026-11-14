@@ -24,6 +24,11 @@ class SetupPage
     private string $self;
 
     /**
+     * @var array<string, mixed> the request environment ($_SERVER)
+     */
+    private array $server;
+
+    /**
      * The PHP session of the page, kept between requests; a reference to $_SESSION on the web.
      *
      * @var array<string, mixed>
@@ -48,6 +53,7 @@ class SetupPage
     public function handle(string $method, array $query, array $post, array $server): SetupResponse
     {
         $this->self = $server['SCRIPT_NAME'] ?? '/setup.php';
+        $this->server = $server;
         $this->translator = $this->translator($query, $server);
 
         if ($this->guard->isLocked()) {
@@ -83,7 +89,18 @@ class SetupPage
             };
         }
 
-        return $this->render('overview');
+        return $this->overview();
+    }
+
+    /**
+     * Where the installation stands, and what to do next.
+     */
+    private function overview(): SetupResponse
+    {
+        return $this->render('overview', [
+            'checks' => (new Requirements($this->basePath, $this->server))->check(),
+            'artisan' => $this->basePath . '/artisan',
+        ]);
     }
 
     private function checkKey(array $post): SetupResponse
