@@ -184,6 +184,18 @@ upstream file can conflict at the next sync.
     this guard: the page can rewrite the configuration and the database.
   - The form follows `.env.example`: a new option there must be added to
     `App\Setup\EnvironmentSchema`, which a test enforces.
+- **Scheduled tasks without a crontab** (`public/cron.php`,
+  `App\Cron\ScheduleRunner`): shared hosts cannot run `schedule:run` every
+  minute (OVH web hosting: a PHP file, no arguments, once an hour at a minute
+  it chooses). The runner runs each task of `app/Console/Kernel.php` that was
+  due since its previous run, in the same PHP process, under a lock. It is
+  called by a web cron service with `?token=<CRON_TOKEN>`, by the host's
+  scheduled task from the command line, or both.
+  - Upstream file touched: `app/Console/Commands/SendReminders.php` covers the
+    time since its previous run instead of a fixed 5-minute window, so
+    reminders survive an hourly rhythm.
+  - A new scheduled task needs nothing special, but must not depend on
+    running at an exact minute.
 
 ## Commands
 
