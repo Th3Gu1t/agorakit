@@ -231,6 +231,7 @@
     "Import": "Importation",
     "Import :name": "Importation :name",
     "In favour": "Pour",
+    "In production, Agorakit only works over HTTPS: the address must start with https://. To try it without HTTPS, choose the local environment.": "En production, Agorakit ne fonctionne qu'en HTTPS : l'adresse doit commencer par https://. Pour l'essayer sans HTTPS, choisissez l'environnement local.",
     "In the discussion": "Dans la discussion",
     "Inbox for this group": "Boîte de réception pour ce groupe",
     "Incorrect password and/or username": "Mot de passe et/ou nom d'utilisateur incorrect",

@@ -224,6 +224,7 @@
     "Import :name": "Import :name",
     "IM Used": "IM Used",
     "In favour": "In favour",
+    "In production, Agorakit only works over HTTPS: the address must start with https://. To try it without HTTPS, choose the local environment.": "In production, Agorakit only works over HTTPS: the address must start with https://. To try it without HTTPS, choose the local environment.",
     "In the discussion": "In the discussion",
     "Inbox for this group": "Inbox for this group",
     "Incorrect password and\/or username": "Incorrect password and\/or username",

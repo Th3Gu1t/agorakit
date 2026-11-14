@@ -79,6 +79,12 @@ class EnvironmentForm
             }
         }
 
+        // In production, Agorakit builds every link with https (AppServiceProvider).
+        if (!isset($errors['APP_URL']) && $values['APP_ENV'] === 'production' && str_starts_with(strtolower($values['APP_URL']), 'http://')) {
+            $errors['APP_URL'] = 'In production, Agorakit only works over HTTPS: the address must start with https://. '
+                . 'To try it without HTTPS, choose the local environment.';
+        }
+
         return [$values, $errors];
     }
 

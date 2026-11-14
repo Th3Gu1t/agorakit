@@ -291,6 +291,21 @@ class SetupPageTest extends TestCase
         $this->assertFileDoesNotExist($this->dir . '/.env');
     }
 
+    public function testProductionNeedsHttps()
+    {
+        $this->signIn();
+
+        $refused = $this->post(['action' => 'environment', 'env' => $this->validOptions(['APP_URL' => 'http://agora.example.org'])]);
+        $this->assertSame(422, $refused->status);
+        $this->assertStringContainsString('In production, Agorakit only works over HTTPS', $refused->body);
+
+        $local = $this->post(['action' => 'environment', 'env' => $this->validOptions([
+            'APP_URL' => 'http://localhost:8000',
+            'APP_ENV' => 'local',
+        ])]);
+        $this->assertSame(303, $local->status);
+    }
+
     public function testEmptyPasswordsKeepTheCurrentOnes()
     {
         $this->signIn();
