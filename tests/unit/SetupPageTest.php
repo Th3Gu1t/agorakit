@@ -2,9 +2,11 @@
 
 namespace Tests;
 
+use App\Setup\EnvironmentFile;
 use App\Setup\SetupGuard;
 use App\Setup\SetupPage;
 use App\Setup\SetupResponse;
+use Dotenv\Dotenv;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -30,12 +32,17 @@ class SetupPageTest extends TestCase
 
     private function page(): SetupPage
     {
-        return new SetupPage(dirname(__DIR__, 2), new SetupGuard($this->dir . '/setup.lock', $this->dir . '/setup.key'), $this->session);
+        return new SetupPage(
+            dirname(__DIR__, 2),
+            new SetupGuard($this->dir . '/setup.lock', $this->dir . '/setup.key'),
+            new EnvironmentFile($this->dir . '/.env'),
+            $this->session
+        );
     }
 
     private function get(array $query = [], array $server = []): SetupResponse
     {
-        return $this->page()->handle('GET', $query, [], $server + ['SCRIPT_NAME' => '/setup.php']);
+        return $this->page()->handle('GET', $query, [], $server + ['SCRIPT_NAME' => '/setup.php', 'HTTP_HOST' => 'agora.test']);
     }
 
     /**
@@ -167,6 +174,138 @@ class SetupPageTest extends TestCase
 
         $this->assertStringContainsString('PHP extension pdo_mysql', $body);
         $this->assertStringContainsString(dirname(__DIR__, 2) . '/artisan schedule:run', $body);
+    }
+
+    /**
+     * Options of a working configuration, with the test database of the project.
+     */
+    private function validOptions(array $changes = []): array
+    {
+        $project = Dotenv::parse(file_get_contents(dirname(__DIR__, 2) . '/.env'));
+
+        return $changes + [
+            'APP_NAME' => 'Les Amis du Quartier',
+            'APP_URL' => 'https://agora.example.org/',
+            'APP_DEFAULT_LOCALE' => 'fr',
+            'TIME_ZONE' => 'Europe/Paris',
+            'APP_ENV' => 'production',
+            'APP_LOG' => 'daily',
+            'DB_CONNECTION' => 'mysql',
+            'DB_HOST' => $project['DB_HOST'],
+            'DB_PORT' => $project['DB_PORT'],
+            'DB_DATABASE' => $project['DB_DATABASE'],
+            'DB_USERNAME' => $project['DB_USERNAME'],
+            'DB_PASSWORD' => $project['DB_PASSWORD'],
+            'MAIL_DRIVER' => 'smtp',
+            'MAIL_HOST' => 'smtp.example.org',
+            'MAIL_PORT' => '587',
+            'MAIL_ENCRYPTION' => 'tls',
+            'MAIL_USERNAME' => 'contact@example.org',
+            'MAIL_PASSWORD' => 'mail secret',
+            'MAIL_FROM' => 'contact@example.org',
+            'MAIL_FROM_NAME' => 'Les Amis',
+            'MAIL_NOREPLY' => 'noreply@example.org',
+            'INBOX_DRIVER' => 'null',
+            'INBOX_PORT' => '993',
+            'MAX_FILE_SIZE' => '10000',
+            'DATA_RETENTION' => '30',
+            'CACHE_DRIVER' => 'file',
+            'SESSION_DRIVER' => 'file',
+            'QUEUE_DRIVER' => 'sync',
+        ];
+    }
+
+    private function written(): array
+    {
+        return Dotenv::parse(file_get_contents($this->dir . '/.env'));
+    }
+
+    public function testFormProposesSensibleDefaults()
+    {
+        $this->signIn();
+
+        $body = $this->get(['step' => 'environment'])->body;
+
+        $this->assertStringContainsString('name="env[DB_HOST]"', $body);
+        $this->assertStringContainsString('value="http://agora.test"', $body);
+        $this->assertStringContainsString('value="localhost"', $body);
+    }
+
+    public function testConfigurationIsWrittenOnceTheDatabaseAnswers()
+    {
+        $this->signIn();
+
+        $response = $this->post(['action' => 'environment', 'env' => $this->validOptions()]);
+
+        $this->assertSame(303, $response->status);
+        $written = $this->written();
+        $this->assertSame('Les Amis du Quartier', $written['APP_NAME']);
+        $this->assertSame('https://agora.example.org', $written['APP_URL']);
+        $this->assertSame('false', $written['APP_DEBUG']);
+        $this->assertStringStartsWith('base64:', $written['APP_KEY']);
+
+        $overview = $this->get()->body;
+        $this->assertStringContainsString('The configuration is saved in the .env file.', $overview);
+        $this->assertStringContainsString('The database can be reached', $overview);
+    }
+
+    public function testUnreachableDatabaseWritesNothing()
+    {
+        $this->signIn();
+
+        $response = $this->post(['action' => 'environment', 'env' => $this->validOptions(['DB_PASSWORD' => 'not-the-password'])]);
+
+        $this->assertSame(422, $response->status);
+        $this->assertStringContainsString('The database cannot be reached with these options', $response->body);
+        $this->assertStringNotContainsString('not-the-password', $response->body);
+        $this->assertFileDoesNotExist($this->dir . '/.env');
+    }
+
+    public function testWrongOptionsAreReportedOneByOne()
+    {
+        $this->signIn();
+
+        $response = $this->post(['action' => 'environment', 'env' => $this->validOptions([
+            'APP_NAME' => '',
+            'APP_URL' => 'agora.example.org',
+            'MAIL_FROM' => 'not an address',
+            'TIME_ZONE' => 'Moon/Base',
+            'DB_PORT' => '33a',
+            'MAIL_DRIVER' => 'pigeon',
+        ])]);
+
+        $this->assertSame(422, $response->status);
+        foreach (
+            [
+                'This option is required.',
+                'Enter a full address, starting with https://.',
+                'Enter a valid email address.',
+                'Enter a time zone such as Europe/Paris.',
+                'Enter a whole number.',
+                'Choose one of the options.',
+            ] as $message
+        ) {
+            $this->assertStringContainsString($message, $response->body);
+        }
+        $this->assertStringNotContainsString('mail secret', $response->body);
+        $this->assertFileDoesNotExist($this->dir . '/.env');
+    }
+
+    public function testEmptyPasswordsKeepTheCurrentOnes()
+    {
+        $this->signIn();
+        $this->post(['action' => 'environment', 'env' => $this->validOptions()]);
+        file_put_contents($this->dir . '/.env', "CUSTOM_OPTION=kept\n", FILE_APPEND);
+
+        $form = $this->get(['step' => 'environment'])->body;
+        $this->assertStringContainsString('Leave empty to keep the current password.', $form);
+        $this->assertStringNotContainsString('mail secret', $form);
+
+        $this->post(['action' => 'environment', 'env' => $this->validOptions(['DB_PASSWORD' => '', 'MAIL_PASSWORD' => ''])]);
+
+        $written = $this->written();
+        $this->assertSame('mail secret', $written['MAIL_PASSWORD']);
+        $this->assertSame('kept', $written['CUSTOM_OPTION']);
     }
 
     public function testPageSpeaksTheLanguageOfTheBrowser()

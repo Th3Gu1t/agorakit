@@ -14,6 +14,31 @@ $statusNames = ['ok' => $t('OK'), 'warning' => $t('Warning'), 'error' => $t('Err
 </div>
 
 <div class="card">
+    <h2><?= $e($t('Configuration')) ?></h2>
+    <?php if (!$configured): ?>
+        <p><?= $e($t('There is no .env file yet: set the options of the site, of the database and of emails.')) ?></p>
+        <a class="button" href="<?= $e($self . '?step=environment') ?>"><?= $e($t('Configure')) ?></a>
+    <?php else: ?>
+        <ul class="checks">
+            <li>
+                <span class="status ok"><?= $e($t('OK')) ?></span>
+                <?= $e($t('The configuration is in the .env file')) ?>
+            </li>
+            <li>
+                <?php if ($databaseError === null): ?>
+                    <span class="status ok"><?= $e($t('OK')) ?></span>
+                    <?= $e($t('The database can be reached')) ?>
+                <?php else: ?>
+                    <span class="status error"><?= $e($t('Error')) ?></span>
+                    <?= $e($t('The database cannot be reached: :error', ['error' => $databaseError])) ?>
+                <?php endif; ?>
+            </li>
+        </ul>
+        <a href="<?= $e($self . '?step=environment') ?>"><?= $e($t('Change the configuration')) ?></a>
+    <?php endif; ?>
+</div>
+
+<div class="card">
     <h2><?= $e($t('Scheduled tasks')) ?></h2>
     <p><?= $e($t('Agorakit sends its email summaries and reminders, and cleans up, through a task the server must run every few minutes. In the control panel of your host, create a scheduled task (cron) that runs this command every 5 minutes:')) ?></p>
     <p><code>php <?= $e($artisan) ?> schedule:run</code></p>

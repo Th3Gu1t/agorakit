@@ -5,6 +5,7 @@ namespace App\Setup;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Translation\FileLoader;
 use Illuminate\Translation\Translator;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -38,8 +39,12 @@ class SetupPage
     /**
      * @param array<string, mixed> $session
      */
-    public function __construct(private string $basePath, private SetupGuard $guard, array &$session)
-    {
+    public function __construct(
+        private string $basePath,
+        private SetupGuard $guard,
+        private EnvironmentFile $environment,
+        array &$session,
+    ) {
         $this->session = &$session;
     }
 
@@ -84,12 +89,16 @@ class SetupPage
 
         if ($method === 'POST') {
             return match ($post['action'] ?? '') {
+                'environment' => $this->saveEnvironment((array) ($post['env'] ?? [])),
                 'lock' => $this->lock(),
                 default => $this->redirect(),
             };
         }
 
-        return $this->overview();
+        return match ($query['step'] ?? '') {
+            'environment' => $this->environmentForm(),
+            default => $this->overview(),
+        };
     }
 
     /**
@@ -97,10 +106,89 @@ class SetupPage
      */
     private function overview(): SetupResponse
     {
+        $configured = $this->environment->exists();
+
         return $this->render('overview', [
             'checks' => (new Requirements($this->basePath, $this->server))->check(),
+            'configured' => $configured,
+            'databaseError' => $configured ? EnvironmentForm::databaseError($this->environment->values()) : null,
             'artisan' => $this->basePath . '/artisan',
         ]);
+    }
+
+    /**
+     * The form that writes the .env file.
+     *
+     * @param array<string, string> $values values to show instead of the current ones
+     * @param array<string, string> $errors translation keys of the errors, by option
+     */
+    private function environmentForm(array $values = [], array $errors = [], ?string $error = null): SetupResponse
+    {
+        $form = $this->environmentFormFor();
+        $kept = [];
+        foreach (EnvironmentSchema::fields() as $key => $field) {
+            $kept[$key] = $field['type'] === EnvironmentSchema::PASSWORD && $form->hasValue($key);
+        }
+
+        return $this->render('environment', [
+            'sections' => EnvironmentSchema::sections(),
+            'values' => $values + $form->values(),
+            'errors' => $errors,
+            'error' => $error,
+            'kept' => $kept,
+        ], $errors || $error ? 422 : 200);
+    }
+
+    /**
+     * Checks the submitted options and the database, then writes the .env file.
+     */
+    private function saveEnvironment(array $input): SetupResponse
+    {
+        [$values, $errors] = $this->environmentFormFor()->submit($input);
+
+        // passwords are never sent back to the browser
+        $shown = $values;
+        foreach (EnvironmentSchema::fields() as $key => $field) {
+            if ($field['type'] === EnvironmentSchema::PASSWORD) {
+                $shown[$key] = '';
+            }
+        }
+
+        if ($errors) {
+            return $this->environmentForm($shown, $errors, $this->t('Some options need to be corrected.'));
+        }
+
+        $databaseError = EnvironmentForm::databaseError($values);
+        if ($databaseError !== null) {
+            return $this->environmentForm(
+                $shown,
+                [],
+                $this->t('The database cannot be reached with these options: :error', ['error' => $databaseError])
+            );
+        }
+
+        try {
+            $this->environment->write($values);
+        } catch (RuntimeException | InvalidArgumentException $e) {
+            return $this->environmentForm($shown, [], $this->t('The .env file cannot be written: :error', ['error' => $e->getMessage()]));
+        }
+
+        $this->flash('success', 'The configuration is saved in the .env file.');
+
+        return $this->redirect();
+    }
+
+    private function environmentFormFor(): EnvironmentForm
+    {
+        return new EnvironmentForm($this->environment, $this->server, $this->translator->getLocale());
+    }
+
+    /**
+     * A message for the next page.
+     */
+    private function flash(string $type, string $message, array $replace = []): void
+    {
+        $this->session['flash'][] = ['type' => $type, 'text' => $this->t($message, $replace)];
     }
 
     private function checkKey(array $post): SetupResponse

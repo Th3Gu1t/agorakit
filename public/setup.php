@@ -33,7 +33,12 @@ session_set_cookie_params([
 ]);
 session_start();
 
-$page = new App\Setup\SetupPage($basePath, App\Setup\SetupGuard::forInstallation($basePath), $_SESSION);
+$page = new App\Setup\SetupPage(
+    $basePath,
+    App\Setup\SetupGuard::forInstallation($basePath),
+    new App\Setup\EnvironmentFile($basePath . '/.env'),
+    $_SESSION
+);
 $response = $page->handle($_SERVER['REQUEST_METHOD'] ?? 'GET', $_GET, $_POST, $_SERVER);
 
 if ($response->regenerateSession) {
