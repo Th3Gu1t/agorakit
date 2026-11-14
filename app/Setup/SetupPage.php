@@ -99,6 +99,7 @@ class SetupPage
             return match ($post['action'] ?? '') {
                 'environment' => $this->saveEnvironment((array) ($post['env'] ?? [])),
                 'migrate' => $this->migrate(),
+                'admin' => $this->createAdmin($post),
                 'lock' => $this->lock(),
                 default => $this->redirect(),
             };
@@ -121,13 +122,18 @@ class SetupPage
 
         $pending = null;
         $applicationError = null;
+        $admins = null;
         if ($ready) {
             try {
                 $pending = $this->pendingMigrations();
+                $admins = $pending === [] ? $this->adminCount() : null;
             } catch (Throwable $e) {
                 $applicationError = $e->getMessage();
             }
         }
+
+        $adminForm = $this->session['admin_form'] ?? ['values' => [], 'errors' => []];
+        unset($this->session['admin_form']);
 
         $output = $this->session['output'] ?? null;
         unset($this->session['output']);
@@ -139,6 +145,8 @@ class SetupPage
             'ready' => $ready,
             'applicationError' => $applicationError,
             'pending' => $pending,
+            'admins' => $admins,
+            'adminForm' => $adminForm,
             'output' => $output,
             'artisan' => $this->basePath . '/artisan',
         ]);
@@ -173,6 +181,66 @@ class SetupPage
         $ran = $migrator->repositoryExists() ? $migrator->getRepository()->getRan() : [];
 
         return array_values(array_diff($files, $ran));
+    }
+
+    private function adminCount(): int
+    {
+        $this->console();
+
+        return \App\User::where('admin', 1)->count();
+    }
+
+    /**
+     * Creates the first administrator of the site.
+     *
+     * Agorakit makes the first account that registers an administrator: on a
+     * site open on the web, a visitor could register before its owner. The
+     * setup page creates that account instead, before the site is in use.
+     */
+    private function createAdmin(array $post): SetupResponse
+    {
+        if ($this->adminCount() > 0) {
+            $this->flash('error', 'An administrator account exists already.');
+            return $this->redirect();
+        }
+
+        $values = [
+            'name' => trim((string) ($post['name'] ?? '')),
+            'email' => trim((string) ($post['email'] ?? '')),
+        ];
+        $password = (string) ($post['password'] ?? '');
+
+        $errors = [];
+        if ($values['name'] === '' || mb_strlen($values['name']) > 255) {
+            $errors['name'] = 'Enter a name.';
+        }
+        if (!filter_var($values['email'], FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = 'Enter a valid email address.';
+        }
+        if (mb_strlen($password) < 8) {
+            $errors['password'] = 'The password needs at least 8 characters.';
+        } elseif ($password !== (string) ($post['password_confirmation'] ?? '')) {
+            $errors['password'] = 'The two passwords differ.';
+        }
+
+        if (!$errors) {
+            $user = new \App\User();
+            $user->name = $values['name'];
+            $user->email = $values['email'];
+            $user->password = \Illuminate\Support\Facades\Hash::make($password);
+            $user->verified = 1;
+            $user->admin = 1;
+            if ($user->save()) {
+                $this->flash('success', 'The administrator account is created: sign in on the site with it.');
+                return $this->redirect();
+            }
+            $errors['email'] = $user->getErrors()->first() ?: 'The account cannot be created.';
+        }
+
+        // shown again on the overview, the password excepted
+        $this->session['admin_form'] = ['values' => $values, 'errors' => $errors];
+
+        return $this->redirect();
     }
 
     /**

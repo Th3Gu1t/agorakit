@@ -6,8 +6,10 @@ use App\Setup\EnvironmentFile;
 use App\Setup\SetupGuard;
 use App\Setup\SetupPage;
 use App\Setup\SetupResponse;
+use App\User;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * The steps of the setup page that need Laravel and the test database.
@@ -115,5 +117,71 @@ class SetupTest extends BrowserKitTestCase
         $this->assertStringContainsString($this->latestMigration(), $after);
         $this->assertStringContainsString('DONE', $after);
         $this->assertStringNotContainsString('Run the migrations', $after);
+    }
+
+    public function testAdminFormIsShownWhileNoAdminExists()
+    {
+        $this->assertSame(0, User::count());
+        $this->signIn();
+
+        $this->assertStringContainsString('Create the administrator account', $this->request('GET')->body);
+    }
+
+    public function testWrongAdminDetailsAreReported()
+    {
+        $this->signIn();
+
+        $this->request('POST', [
+            'action' => 'admin',
+            'name' => 'Camille',
+            'email' => 'camille@example.org',
+            'password' => 'long enough',
+            'password_confirmation' => 'something else',
+        ]);
+
+        $body = $this->request('GET')->body;
+        $this->assertStringContainsString('The two passwords differ.', $body);
+        $this->assertStringContainsString('value="camille@example.org"', $body);
+        $this->assertStringNotContainsString('long enough', $body);
+        $this->assertSame(0, User::count());
+    }
+
+    public function testAdminIsCreatedVerified()
+    {
+        $this->signIn();
+
+        $this->request('POST', [
+            'action' => 'admin',
+            'name' => 'Camille',
+            'email' => 'camille@example.org',
+            'password' => 'long enough',
+            'password_confirmation' => 'long enough',
+        ]);
+
+        $user = User::where('email', 'camille@example.org')->firstOrFail();
+        $this->assertTrue($user->isAdmin());
+        $this->assertTrue($user->isVerified());
+        $this->assertTrue(Hash::check('long enough', $user->password));
+
+        $body = $this->request('GET')->body;
+        $this->assertStringContainsString('The administrator account is created', $body);
+        $this->assertStringContainsString('An administrator account exists', $body);
+        $this->assertStringNotContainsString('Create the administrator account', $body);
+    }
+
+    public function testNoSecondAdminFromThePage()
+    {
+        $this->signIn();
+
+        $this->request('POST', [
+            'action' => 'admin',
+            'name' => 'Intruder',
+            'email' => 'intruder@example.org',
+            'password' => 'long enough',
+            'password_confirmation' => 'long enough',
+        ]);
+
+        $this->assertFalse(User::where('email', 'intruder@example.org')->exists());
+        $this->assertStringContainsString('An administrator account exists already.', $this->request('GET')->body);
     }
 }
