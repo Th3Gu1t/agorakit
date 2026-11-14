@@ -219,6 +219,28 @@ Things to know:
 - `composer scan` reports known errors on `main`, tied to the optional IMAP
   package. Do not add new ones.
 
+## Releases
+
+The instance is installed from release archives: its host has no SSH, so
+neither git, Composer nor Artisan can run there.
+
+- A release is a tag `v<upstream version>-fork.<n>` on `main`, for instance
+  `v1.11.4-fork.1`: the upstream version in `config/agorakit.php`, then the
+  number of the fork release, back to 1 after a sync brings a new upstream
+  version.
+- Pushing the tag runs the `Fork release` workflow. It builds
+  `agorakit-<tag>.zip` with `.github/fork/build-release.sh` (tracked files,
+  minus development files, plus `vendor/` without development packages), writes
+  the notes with `.github/fork/release-notes.sh` (the pull requests merged
+  since the previous release, grouped by type) and publishes the GitHub
+  release with the archive and its SHA-256 checksum.
+- Tag only a commit of `main` whose CI is green, and only when the maintainer
+  asks for a release: a release is what gets deployed.
+- Try the build locally: `.github/fork/build-release.sh test HEAD /tmp/release`
+  and `.github/fork/release-notes.sh test HEAD`. A pull request that changes
+  these scripts or the workflow also builds a trial archive, kept as a
+  workflow artifact.
+
 ## Procedures
 
 Two project skills describe the recurring fork operations:
