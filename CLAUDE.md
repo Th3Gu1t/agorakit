@@ -173,6 +173,18 @@ upstream file can conflict at the next sync.
     every member votes. A poll is always checked against its discussion and
     group (`PollController::checkPoll`).
 
+- **Setup page** (`public/setup.php`), for hosts without SSH: checks the
+  server, writes `.env` from a form (with `APP_KEY`), runs the migrations,
+  creates the first administrator and clears the caches, all from a browser.
+  - Own files: `app/Setup/`, `resources/views/setup/` (plain PHP, since the
+    page runs before Laravel is configured), `tests/unit/Setup*Test.php`,
+    `tests/integration/SetupTest.php`.
+  - Guarded by two files at the root of the installation: `setup.lock`
+    closes the page; `setup.key` holds the key the page asks for. Never weaken
+    this guard: the page can rewrite the configuration and the database.
+  - The form follows `.env.example`: a new option there must be added to
+    `App\Setup\EnvironmentSchema`, which a test enforces.
+
 ## Commands
 
 First setup of a clone:
@@ -236,6 +248,9 @@ neither git, Composer nor Artisan can run there.
   release with the archive and its SHA-256 checksum.
 - Tag only a commit of `main` whose CI is green, and only when the maintainer
   asks for a release: a release is what gets deployed.
+- On the host, the archive is unpacked over the installation, then
+  `setup.lock` is deleted and `/setup.php` runs the migrations and clears the
+  caches (see "Features of this fork").
 - Try the build locally: `.github/fork/build-release.sh test HEAD /tmp/release`
   and `.github/fork/release-notes.sh test HEAD`. A pull request that changes
   these scripts or the workflow also builds a trial archive, kept as a
