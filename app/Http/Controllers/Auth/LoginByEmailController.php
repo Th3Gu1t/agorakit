@@ -12,19 +12,19 @@ use App\Services\LoginLinkService;
 class LoginByEmailController extends Controller
 {
     /**
-    * Show a login by mail form, might be unnecessary now
-    */
+     * Show a login by mail form, might be unnecessary now
+     */
     public function showLoginByEmailForm(Request $request)
     {
         $email = $request->session()->get('email');
         return view('auth.loginbyemail')
-        ->with('email', $email);
+            ->with('email', $email);
     }
 
     public function sendLoginByEmail(Request $request, LoginLinkService $loginLinks)
     {
         // find user, even if it was deleted, like the sign-in form does
-        $user = User::where('email', trim($request->get('email')))->withTrashed()->first();
+        $user = User::where('email', trim($request->input('email')))->withTrashed()->first();
 
         if ($user) {
             // send login link by email, unless too many were sent recently

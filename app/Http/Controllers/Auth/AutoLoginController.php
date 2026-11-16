@@ -14,7 +14,7 @@ class AutoLoginController extends Controller
         if (!$request->hasValidSignature()) {
             abort(401, 'Invalid or expired signature');
         }
-        $user = User::withTrashed()->where('username', $request->get('username'))->firstOrFail();
+        $user = User::withTrashed()->where('username', $request->input('username'))->firstOrFail();
 
         // A valid link proves that its bearer reads the mailbox of the account.
         // Like a password sign-in, it re-activates an account marked for deletion.
