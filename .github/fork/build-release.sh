@@ -9,7 +9,8 @@
 # The archive holds a single folder, agorakit-<version>/, with:
 # - the tracked files of the revision, as "git archive" exports them, minus
 #   what only serves development (tests, Docker, guides for AI assistants);
-# - vendor/, from "composer install --no-dev" against composer.lock;
+# - vendor/, from "composer install --no-dev" against composer.lock, plus the
+#   IMAP package that post by email needs (see IMAP_PACKAGE);
 # - VERSION, naming the version, the commit it was built from and the
 #   repository, which the setup page proposes as the address of the source
 #   code of the site (AGPL).
@@ -34,6 +35,14 @@ readonly DEV_ONLY=(
     bin/dev-init.sh
 )
 
+# composer.json only suggests ddeboer/imap, since the package requires the IMAP
+# extension of PHP: "composer install" leaves it out. Hosts without SSH cannot
+# add it, and many have the extension (OVH web hosting does), so the archive
+# carries it. 1.19 is the last version that supports PHP 8.2, the platform
+# composer.json sets. Without the extension, post by email stays unavailable
+# and the rest of Agorakit is unaffected.
+readonly IMAP_PACKAGE=ddeboer/imap:1.19.0
+
 root=$(git rev-parse --show-toplevel)
 commit=$(git -C "$root" rev-parse --verify "$revision^{commit}")
 name="agorakit-$version"
@@ -53,6 +62,9 @@ echo "Installing the dependencies"
 # The post-install scripts discover the Laravel packages; they need no .env.
 composer install --working-dir="$work/$name" --no-dev --prefer-dist --optimize-autoloader \
     --no-interaction --no-progress
+# Adds the package alone: the locked versions of the others do not move.
+composer require --working-dir="$work/$name" "$IMAP_PACKAGE" --update-no-dev --prefer-dist \
+    --optimize-autoloader --ignore-platform-req=ext-imap --no-interaction --no-progress
 
 # On GitHub Actions, the repository being built; elsewhere, the origin remote.
 repository=${GITHUB_SERVER_URL:+$GITHUB_SERVER_URL/$GITHUB_REPOSITORY}

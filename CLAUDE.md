@@ -254,7 +254,8 @@ neither git, Composer nor Artisan can run there.
   version.
 - Pushing the tag runs the `Fork release` workflow. It builds
   `agorakit-<tag>.zip` with `.github/fork/build-release.sh` (tracked files,
-  minus development files, plus `vendor/` without development packages), writes
+  minus development files, plus `vendor/` without development packages but with
+  `ddeboer/imap`, which post by email needs and `composer.json` only suggests), writes
   the notes with `.github/fork/release-notes.sh` (the pull requests merged
   since the previous release, grouped by type) and publishes the GitHub
   release with the archive and its SHA-256 checksum.
