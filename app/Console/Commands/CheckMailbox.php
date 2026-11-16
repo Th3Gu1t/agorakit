@@ -85,13 +85,14 @@ class CheckMailbox extends Command
      */
     public function handle()
     {
-        if (!function_exists('imap_open')) {
-                $this->info('IMAP extension must be enabled');
+        // INBOX_DRIVER=null turns the feature off, as for the inbox addresses of groups and discussions
+        if (!config('agorakit.inbox_driver') || !config('agorakit.inbox_host')) {
+            $this->info('Email checking disabled in settings');
             return false;
         }
 
-        if (!config('agorakit.inbox_host')) {
-            $this->info('Email checking disabled in settings');
+        if (!function_exists('imap_open')) {
+                $this->info('IMAP extension must be enabled');
             return false;
         }
 
