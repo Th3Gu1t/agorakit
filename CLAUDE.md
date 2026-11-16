@@ -196,6 +196,11 @@ upstream file can conflict at the next sync.
     reminders survive an hourly rhythm.
   - A new scheduled task needs nothing special, but must not depend on
     running at an exact minute.
+  - The answer (`App\Cron\RunReport`) lists every task as ok, failed, not
+    due or skipped, after a summary line. A failed task makes the web answer
+    500 and the command exit with 1: the instance relies on cron-job.org
+    alerting on it. A command that fails should print why on its last line,
+    which the answer quotes.
 
 ## Commands
 
