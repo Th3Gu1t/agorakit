@@ -11,6 +11,9 @@
  * - a web cron service calls https://<site>/cron.php?token=<CRON_TOKEN>, with
  *   the CRON_TOKEN of the .env file. Without the right token, the page answers
  *   404 and runs nothing.
+ *
+ * Either way, it lists every scheduled task with what became of it (see
+ * App\Cron\RunReport). When a task fails, the command exits with 1.
  */
 
 $basePath = dirname(__DIR__);
@@ -40,21 +43,11 @@ if ($web) {
 }
 
 $runner = new App\Cron\ScheduleRunner($app, $kernel, $app->make('cache.store'));
-$ran = $runner->run($app->make(Illuminate\Console\Scheduling\Schedule::class));
+$report = new App\Cron\RunReport(
+    $runner->run($app->make(Illuminate\Console\Scheduling\Schedule::class)),
+    Carbon\Carbon::now()
+);
 
-if ($ran === null) {
-    echo "Another run is in progress.\n";
-    exit(0);
-}
+echo $report->text();
 
-$failed = array_filter($ran, fn ($task) => $task['status'] !== 0);
-echo count($ran) . ' task(s) run, ' . count($failed) . " failed.\n";
-
-// the names of the tasks only on the command line: the web answer stays minimal
-if (!$web) {
-    foreach ($ran as $task) {
-        echo ($task['status'] === 0 ? 'ok    ' : 'FAIL  ') . $task['task'] . "\n";
-    }
-}
-
-exit($failed ? 1 : 0);
+exit($report->exitCode());
