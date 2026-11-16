@@ -10,6 +10,12 @@
 
 $basePath = dirname(__DIR__);
 
+// On hosts that display errors, PHP prints notices and deprecations as they
+// happen: they would go out before the headers of the page and break it. They
+// are held back here and dropped once the answer is ready; the host still logs
+// them. A fatal error is still shown, since the buffer is sent when PHP stops.
+ob_start();
+
 // Checked first, in plain words: the dependencies would fail with less helpful errors.
 if (PHP_VERSION_ID < 80300) {
     http_response_code(500);
@@ -58,4 +64,5 @@ $response = $page->handle($_SERVER['REQUEST_METHOD'] ?? 'GET', $_GET, $_POST, $_
 if ($response->regenerateSession) {
     session_regenerate_id(true);
 }
+ob_end_clean();
 $response->send();

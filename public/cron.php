@@ -19,6 +19,12 @@
 
 $basePath = dirname(__DIR__);
 
+// On hosts that display errors, PHP prints notices and deprecations as they
+// happen: they would go out before the status of the answer, which then could
+// no longer say that a task failed. They are held back and written after the
+// report, for the person who reads it.
+ob_start();
+
 require $basePath . '/vendor/autoload.php';
 
 $app = require $basePath . '/bootstrap/app.php';
@@ -30,6 +36,8 @@ $web = PHP_SAPI !== 'cli';
 if ($web) {
     $token = (string) config('agorakit.cron_token');
     if ($token === '' || !hash_equals($token, (string) ($_GET['token'] ?? ''))) {
+        // nothing of the server for a caller without the token
+        ob_end_clean();
         http_response_code(404);
         header('Content-Type: text/plain; charset=UTF-8');
         exit("Not found\n");
@@ -49,9 +57,13 @@ $report = new App\Cron\RunReport(
     Carbon\Carbon::now()
 );
 
+$printed = trim(strip_tags((string) ob_get_clean()));
 if ($web) {
     http_response_code($report->httpStatus());
 }
 echo $report->text();
+if ($printed !== '') {
+    echo "\nPHP printed meanwhile:\n" . $printed . "\n";
+}
 
 exit($report->exitCode());
