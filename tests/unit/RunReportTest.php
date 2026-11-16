@@ -17,7 +17,7 @@ class RunReportTest extends TestCase
         return new RunReport($results, Carbon::parse('2026-11-16 12:35:02', 'Europe/Paris'));
     }
 
-    public function testFailedTaskIsNamedFirst()
+    public function testFailedTaskTurnsTheAnswerIntoAnError()
     {
         $report = $this->report([
             new TaskResult('agorakit:sendnotifications', TaskResult::OK, '', 0.421),
@@ -27,6 +27,7 @@ class RunReportTest extends TestCase
         ]);
 
         $this->assertTrue($report->failed());
+        $this->assertSame(500, $report->httpStatus());
         $this->assertSame(1, $report->exitCode());
         $this->assertSame(
             "Scheduled tasks of Agorakit, 2026-11-16 12:35:02 (Europe/Paris): "
@@ -49,6 +50,7 @@ class RunReportTest extends TestCase
         ]);
 
         $this->assertFalse($report->failed());
+        $this->assertSame(200, $report->httpStatus());
         $this->assertSame(0, $report->exitCode());
         $this->assertStringContainsString(': 1 ok, 1 not due, 1 skipped.', $report->text());
     }
@@ -57,7 +59,7 @@ class RunReportTest extends TestCase
     {
         $report = $this->report(null);
 
-        $this->assertSame(0, $report->exitCode());
+        $this->assertSame(200, $report->httpStatus());
         $this->assertSame(
             "Scheduled tasks of Agorakit, 2026-11-16 12:35:02 (Europe/Paris): another run is in progress, nothing was run.\n",
             $report->text()

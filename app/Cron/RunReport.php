@@ -6,10 +6,11 @@ use Carbon\CarbonInterface;
 
 /**
  * The answer of cron.php: a summary line, then one line per task of the
- * schedule, and an exit code that says whether a task failed.
+ * schedule, and a status that says whether a task failed.
  *
- * Monitoring services such as cron-job.org show the start of the answer, hence
- * the summary first, naming the tasks that failed.
+ * Monitoring services such as cron-job.org alert on an HTTP status other than
+ * 2xx and show the start of the answer, hence the summary first, naming the
+ * tasks that failed. The scheduled tasks of a host look at the exit code.
  */
 final class RunReport
 {
@@ -29,6 +30,11 @@ final class RunReport
         }
 
         return false;
+    }
+
+    public function httpStatus(): int
+    {
+        return $this->failed() ? 500 : 200;
     }
 
     public function exitCode(): int

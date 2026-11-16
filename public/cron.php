@@ -13,7 +13,8 @@
  *   404 and runs nothing.
  *
  * Either way, it lists every scheduled task with what became of it (see
- * App\Cron\RunReport). When a task fails, the command exits with 1.
+ * App\Cron\RunReport). When a task fails, the web answer has the status 500,
+ * so that the cron service can alert, and the command exits with 1.
  */
 
 $basePath = dirname(__DIR__);
@@ -48,6 +49,9 @@ $report = new App\Cron\RunReport(
     Carbon\Carbon::now()
 );
 
+if ($web) {
+    http_response_code($report->httpStatus());
+}
 echo $report->text();
 
 exit($report->exitCode());
