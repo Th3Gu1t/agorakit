@@ -91,9 +91,15 @@ class CheckMailbox extends Command
             return false;
         }
 
+        // composer.json only suggests this package, so that installs without the IMAP extension work
+        if (!class_exists(Server::class)) {
+            $this->error('Email checking needs the ddeboer/imap package: run composer require ddeboer/imap');
+            return self::FAILURE;
+        }
+
         if (!function_exists('imap_open')) {
-                $this->info('IMAP extension must be enabled');
-            return false;
+            $this->error('Email checking needs the IMAP extension of PHP');
+            return self::FAILURE;
         }
 
         $this->dry = $this->option('dry');

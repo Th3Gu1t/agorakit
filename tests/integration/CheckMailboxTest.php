@@ -2,11 +2,12 @@
 
 namespace Tests;
 
+use Ddeboer\Imap\Server;
 use Illuminate\Support\Facades\Artisan;
 
 /**
- * agorakit:checkmailbox runs every minute: when post by email is off, it must stop before connecting to
- * anything.
+ * agorakit:checkmailbox runs every minute: when post by email is off, or cannot work, it must stop before
+ * connecting to anything.
  */
 class CheckMailboxTest extends BrowserKitTestCase
 {
@@ -36,5 +37,17 @@ class CheckMailboxTest extends BrowserKitTestCase
 
         $this->assertSame(0, $status);
         $this->assertStringContainsString('Email checking disabled in settings', Artisan::output());
+    }
+
+    public function testFailsWithAMessageWhenTheImapPackageIsMissing()
+    {
+        if (class_exists(Server::class)) {
+            $this->markTestSkipped('ddeboer/imap is installed here.');
+        }
+
+        $status = $this->checkMailbox([]);
+
+        $this->assertSame(1, $status);
+        $this->assertStringContainsString('composer require ddeboer/imap', Artisan::output());
     }
 }
