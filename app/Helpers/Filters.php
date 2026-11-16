@@ -1,6 +1,5 @@
 <?php
 
-
 /**
  * Text/html processing and filters
  * The most used ont is filter($content).

@@ -12,7 +12,9 @@ use Illuminate\Http\Request;
  */
 class ModuleController extends Controller
 {
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 
     public function show(Request $request, Group $group)
     {
