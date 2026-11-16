@@ -366,6 +366,8 @@
     "PHP cannot make HTTPS requests on this server: it needs the curl extension or allow_url_fopen.": "PHP cannot make HTTPS requests on this server: it needs the curl extension or allow_url_fopen.",
     "PHP extension :extension": "PHP extension :extension",
     "PHP extension :extension (optional)": "PHP extension :extension (optional)",
+    "PHP extension imap is missing: posting by email is set up but cannot work. Choose a PHP version that has it in the control panel of your host.": "PHP extension imap is missing: posting by email is set up but cannot work. Choose a PHP version that has it in the control panel of your host.",
+    "PHP extension imap, which posting by email needs": "PHP extension imap, which posting by email needs",
     "Pinned": "Pinned",
     "Places addresses on maps.": "Places addresses on maps.",
     "Please click the button below to verify your email address.": "Please click the button below to verify your email address.",

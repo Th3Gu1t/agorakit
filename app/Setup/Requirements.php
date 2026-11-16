@@ -53,6 +53,7 @@ class Requirements
         return array_merge(
             [$this->php()],
             $this->extensions(),
+            $this->postByEmail(),
             $this->writableFolders(),
             [$this->documentRoot(), $this->https()],
         );
@@ -100,6 +101,28 @@ class Requirements
         }
 
         return $checks;
+    }
+
+    /**
+     * The IMAP extension, once posting by email is set up. PHP no longer ships it
+     * since 8.4, so a host may offer it with some PHP versions and not others.
+     *
+     * @return list<array{status: string, label: string}>
+     */
+    private function postByEmail(): array
+    {
+        $driver = strtolower((new EnvironmentFile($this->basePath . '/.env'))->values()['INBOX_DRIVER'] ?? '');
+        if (in_array($driver, ['', 'null', '(null)'], true)) {
+            return [];
+        }
+
+        return [extension_loaded('imap')
+            ? ['status' => self::OK, 'label' => 'PHP extension imap, which posting by email needs']
+            : [
+                'status' => self::WARNING,
+                'label' => 'PHP extension imap is missing: posting by email is set up but cannot work. '
+                    . 'Choose a PHP version that has it in the control panel of your host.',
+            ]];
     }
 
     private function writableFolders(): array
