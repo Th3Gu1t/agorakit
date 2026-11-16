@@ -121,8 +121,8 @@ the pull request title, which becomes the subject of the merge commit.
 
 ## Project overview
 
-- Laravel 11 on PHP `^8.2`. Composer pins the platform to PHP 8.2 and the CI
-  runs 8.2: do not use newer syntax, even if the local PHP is more recent.
+- Laravel 12 on PHP `^8.3`. Composer pins the platform to PHP 8.3 and the CI
+  runs 8.3: do not use newer syntax, even if the local PHP is more recent.
 - MySQL or MariaDB. SQLite is not supported.
 - A hypermedia application: Blade views with [Unpoly](https://unpoly.com),
   Tabler and Bootstrap styles, flat CSS and JavaScript in `public/`. There is
