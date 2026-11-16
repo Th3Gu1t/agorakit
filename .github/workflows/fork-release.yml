@@ -8,6 +8,11 @@ name: Fork release
 #
 # On a pull request that changes the release tooling, the archive is built
 # and kept as a workflow artifact, without publishing anything.
+#
+# The archive is built with the PHP version of the instance, written in
+# .github/fork/php-version: Composer and the package discovery run with the
+# PHP that will run the code. The dependencies stay resolved for the minimum
+# PHP of composer.json.
 
 on:
   push:
@@ -17,6 +22,7 @@ on:
     paths:
       - ".github/fork/build-release.sh"
       - ".github/fork/release-notes.sh"
+      - ".github/fork/php-version"
       - ".github/workflows/fork-release.yml"
 
 permissions:
@@ -28,16 +34,17 @@ jobs:
 
     steps:
 
-    - name: Setup PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: '8.3'
-        tools: composer:v2
-
-    # The whole history and the tags, to find the previous release.
+    # The whole history and the tags, to find the previous release; first, so
+    # that the PHP version of the instance can be read.
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version-file: .github/fork/php-version
+        tools: composer:v2
 
     - name: Name the version
       env:
