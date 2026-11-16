@@ -3,11 +3,14 @@
 namespace Tests;
 
 use App\Cron\ScheduleRunner;
+use App\Cron\TaskResult;
 use Carbon\Carbon;
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
+use Illuminate\Console\Command;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Console\Kernel;
+use RuntimeException;
 
 /**
  * Scheduled tasks run by cron.php, called rarely or irregularly.
@@ -44,11 +47,27 @@ class ScheduleRunnerTest extends BrowserKitTestCase
         parent::tearDown();
     }
 
+    /**
+     * @return list<TaskResult>|null
+     */
     private function runAt(string $time): ?array
     {
         Carbon::setTestNow(Carbon::parse($time, config('app.timezone')));
 
         return (new ScheduleRunner($this->app, $this->app->make(Kernel::class), $this->cache))->run($this->schedule);
+    }
+
+    /**
+     * The result of one task in what runAt() returned.
+     *
+     * @param list<TaskResult> $results
+     */
+    private function resultOf(array $results, string $task): TaskResult
+    {
+        $matching = array_values(array_filter($results, fn (TaskResult $result) => str_contains($result->task, $task)));
+        $this->assertCount(1, $matching, "one result for $task");
+
+        return $matching[0];
     }
 
     public function testHourlyCallsAtAnOddMinuteRunEveryTask()
@@ -116,20 +135,101 @@ class ScheduleRunnerTest extends BrowserKitTestCase
             $this->runs['never'][] = 'ran';
         })->name('never')->everyMinute()->when(fn () => false);
 
-        $this->runAt('2026-11-14 10:05');
+        $results = $this->runAt('2026-11-14 10:05');
 
         $this->assertArrayNotHasKey('never', $this->runs);
+        $never = $this->resultOf($results, 'never');
+        $this->assertSame(TaskResult::SKIPPED, $never->result);
+        $this->assertSame('its conditions are not met', $never->detail);
     }
 
     public function testArtisanCommandsRunInThisProcess()
     {
         $this->schedule->command('about')->everyMinute();
 
-        $ran = $this->runAt('2026-11-14 10:05');
+        $about = $this->resultOf($this->runAt('2026-11-14 10:05'), 'about');
 
-        $about = array_values(array_filter($ran, fn ($task) => str_contains($task['task'], 'about')));
-        $this->assertCount(1, $about);
-        $this->assertSame(0, $about[0]['status']);
+        $this->assertSame(TaskResult::OK, $about->result);
+        $this->assertNotNull($about->seconds);
+    }
+
+    public function testEveryTaskGetsAResult()
+    {
+        $this->runAt('2026-11-14 10:00');
+
+        $results = $this->runAt('2026-11-14 10:05');
+
+        $this->assertCount(3, $results);
+        $this->assertSame(TaskResult::OK, $this->resultOf($results, 'everyFiveMinutes')->result);
+        $hourly = $this->resultOf($results, 'hourly');
+        $this->assertSame(TaskResult::NOT_DUE, $hourly->result);
+        $this->assertSame('next due at 2026-11-14 11:00', $hourly->detail);
+        $this->assertSame('next due at 2026-11-15 00:00', $this->resultOf($results, 'daily')->detail);
+    }
+
+    public function testFailedCommandGivesItsLastMessage()
+    {
+        $this->app->make(Kernel::class)->registerCommand(new class extends Command {
+            protected $signature = 'test:fails';
+
+            public function handle(): int
+            {
+                $this->info('Checking the mailbox');
+                $this->error('The mailbox cannot be reached');
+
+                return 2;
+            }
+        });
+        $this->schedule->command('test:fails')->everyMinute();
+
+        $failed = $this->resultOf($this->runAt('2026-11-14 10:05'), 'test:fails');
+
+        $this->assertSame(TaskResult::FAILED, $failed->result);
+        $this->assertSame('exit code 2: The mailbox cannot be reached', $failed->detail);
+    }
+
+    public function testExceptionIsReportedAndOtherTasksStillRun()
+    {
+        $this->schedule->call(function () {
+            throw new RuntimeException("Class \"Ddeboer\\Imap\\Server\" not found\nwith a second line");
+        })->name('crashes')->everyMinute();
+
+        $results = $this->runAt('2026-11-14 10:05');
+
+        $crashes = $this->resultOf($results, 'crashes');
+        $this->assertSame(TaskResult::FAILED, $crashes->result);
+        $this->assertSame('RuntimeException: Class "Ddeboer\\Imap\\Server" not found with a second line', $crashes->detail);
+        $this->assertSame(TaskResult::OK, $this->resultOf($results, 'everyFiveMinutes')->result);
+    }
+
+    public function testMaintenanceModeDelaysDueTasks()
+    {
+        $down = storage_path('framework/down');
+        file_put_contents($down, json_encode(['status' => 503]));
+        try {
+            $results = $this->runAt('2026-11-14 10:05');
+        } finally {
+            unlink($down);
+        }
+
+        $this->assertSame([], $this->runs);
+        $skipped = $this->resultOf($results, 'everyFiveMinutes');
+        $this->assertSame(TaskResult::SKIPPED, $skipped->result);
+        $this->assertSame('the site is in maintenance mode', $skipped->detail);
+
+        // the tasks it held back run at the first call after it
+        $this->runAt('2026-11-14 10:07');
+        $this->assertSame(['2026-11-14 10:07'], $this->runs['everyFiveMinutes']);
+    }
+
+    public function testTaskOfAnotherEnvironmentIsSkipped()
+    {
+        $this->schedule->call(fn () => null)->name('staging only')->everyMinute()->environments(['staging']);
+
+        $result = $this->resultOf($this->runAt('2026-11-14 10:05'), 'staging only');
+
+        $this->assertSame(TaskResult::SKIPPED, $result->result);
+        $this->assertStringStartsWith('not run in the ', $result->detail);
     }
 
     public function testScheduleOfAgorakitIsReadable()

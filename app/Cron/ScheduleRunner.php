@@ -26,6 +26,9 @@ use Throwable;
  * Commands run in this PHP process, through the console kernel: from a web
  * request, schedule:run would start new "php artisan" processes, which shared
  * hosts often do not allow. A lock keeps two calls from running together.
+ *
+ * Every task of the schedule gets a result, run or not, so that cron.php can
+ * tell a monitoring service what happened (see RunReport).
  */
 class ScheduleRunner
 {
@@ -43,7 +46,7 @@ class ScheduleRunner
     /**
      * Runs the tasks of the schedule that are due.
      *
-     * @return list<array{task: string, status: int}>|null the tasks run, or null when another call holds the lock
+     * @return list<TaskResult>|null what became of each task of the schedule, or null when another call holds the lock
      */
     public function run(Schedule $schedule): ?array
     {
@@ -53,20 +56,46 @@ class ScheduleRunner
         }
 
         try {
-            $ran = [];
+            $results = [];
             foreach ($schedule->events() as $event) {
-                $now = Carbon::now();
-                if (!$this->isDue($event, $now)) {
-                    continue;
-                }
-                $ran[] = ['task' => $this->name($event), 'status' => $this->runEvent($event)];
-                $this->cache->forever($this->key($event), $now->getTimestamp());
+                $results[] = $this->handle($event, Carbon::now());
             }
 
-            return $ran;
+            return $results;
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * Runs a task if it is due and nothing prevents it.
+     */
+    private function handle(Event $event, Carbon $now): TaskResult
+    {
+        $name = $this->name($event);
+
+        if (!$event->runsInEnvironment($this->app->environment())) {
+            return new TaskResult($name, TaskResult::SKIPPED, 'not run in the ' . $this->app->environment() . ' environment');
+        }
+        if (!$this->isDue($event, $now)) {
+            return new TaskResult($name, TaskResult::NOT_DUE, 'next due at ' . $this->nextDue($event, $now));
+        }
+        // neither of these counts as a run: the task runs at the first call where they no longer apply
+        if ($this->app->isDownForMaintenance() && !$event->runsInMaintenanceMode()) {
+            return new TaskResult($name, TaskResult::SKIPPED, 'the site is in maintenance mode');
+        }
+        if (!$event->filtersPass($this->app)) {
+            return new TaskResult($name, TaskResult::SKIPPED, 'its conditions are not met');
+        }
+
+        $start = microtime(true);
+        [$status, $detail] = $this->runEvent($event);
+        $seconds = microtime(true) - $start;
+        $this->cache->forever($this->key($event), $now->getTimestamp());
+
+        return $status === 0
+            ? new TaskResult($name, TaskResult::OK, '', $seconds)
+            : new TaskResult($name, TaskResult::FAILED, $detail, $seconds);
     }
 
     /**
@@ -74,47 +103,76 @@ class ScheduleRunner
      */
     private function isDue(Event $event, Carbon $now): bool
     {
-        if (!$event->runsInEnvironment($this->app->environment()) || !$event->filtersPass($this->app)) {
-            return false;
-        }
-        if ($this->app->isDownForMaintenance() && !$event->runsInMaintenanceMode()) {
-            return false;
-        }
-
-        $timezone = $event->timezone ?: config('app.timezone');
-        $lastDue = (new CronExpression($event->expression))
-            ->getPreviousRunDate($now->copy()->setTimezone($timezone), 0, true);
+        $lastDue = $this->expression($event)->getPreviousRunDate($this->local($event, $now), 0, true);
         $lastRun = $this->cache->get($this->key($event), $now->getTimestamp() - self::FIRST_RUN_LOOKBACK);
 
         return $lastDue->getTimestamp() > $lastRun;
     }
 
     /**
+     * When the task is due next, in its own time zone.
+     */
+    private function nextDue(Event $event, Carbon $now): string
+    {
+        return $this->expression($event)->getNextRunDate($this->local($event, $now))->format('Y-m-d H:i');
+    }
+
+    private function expression(Event $event): CronExpression
+    {
+        return new CronExpression($event->expression);
+    }
+
+    private function local(Event $event, Carbon $now): Carbon
+    {
+        return $now->copy()->setTimezone($event->timezone ?: config('app.timezone'));
+    }
+
+    /**
      * Runs one task in this process.
      *
-     * @return int the exit status, 0 when the task succeeded
+     * @return array{int, string} the exit status, 0 when the task succeeded, and why it failed
      */
-    private function runEvent(Event $event): int
+    private function runEvent(Event $event): array
     {
         try {
             if ($event instanceof CallbackEvent) {
                 $event->run($this->app);
+                $status = (int) ($event->exitCode ?? 0);
 
-                return (int) ($event->exitCode ?? 0);
+                return [$status, $status === 0 ? '' : 'exit code ' . $status];
             }
 
             $command = $this->artisanCommand((string) $event->command);
             if ($command === null) {
-                // a shell command: only a real crontab can run it
-                return 1;
+                return [1, 'not an artisan command: only a real crontab can run it'];
             }
 
-            return $this->kernel->call($command);
+            $status = $this->kernel->call($command);
+
+            return [$status, $status === 0 ? '' : $this->failure($status, $this->kernel->output())];
         } catch (Throwable $e) {
             report($e);
 
-            return 1;
+            return [1, self::oneLine(class_basename($e) . ': ' . $e->getMessage())];
         }
+    }
+
+    /**
+     * The exit status of a failed command, with the last thing it printed, which usually says why.
+     */
+    private function failure(int $status, string $output): string
+    {
+        $lines = array_filter(array_map('trim', preg_split('/\R/', $output) ?: []), fn ($line) => $line !== '');
+        $last = (string) end($lines);
+
+        return 'exit code ' . $status . ($last === '' ? '' : ': ' . self::oneLine($last));
+    }
+
+    private static function oneLine(string $text): string
+    {
+        $text = trim((string) preg_replace('/\s+/', ' ', $text));
+
+        return mb_strlen($text) > 300 ? mb_substr($text, 0, 299) . '…' : $text;
     }
 
     /**
