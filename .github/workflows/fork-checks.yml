@@ -1,8 +1,8 @@
 name: Fork checks
 
 # Rules that only exist in this fork: commit format, separation between
-# fork-only files and application code, signed commits, coding standard.
-# See CLAUDE.md.
+# fork-only files and application code, signed commits, coding standard, and
+# the tests on the PHP version of the instance. See CLAUDE.md.
 
 on:
   pull_request:
@@ -65,12 +65,12 @@ jobs:
 
     steps:
 
+    - uses: actions/checkout@v4
+
     - name: Setup PHP
       uses: shivammathur/setup-php@v2
       with:
-        php-version: '8.3'
-
-    - uses: actions/checkout@v4
+        php-version-file: .github/fork/php-version
 
     - name: Copy .env
       run: php -r "file_exists('.env') || copy('.env.ci', '.env');"
@@ -80,3 +80,47 @@ jobs:
 
     - name: Check the coding standard
       run: composer lint
+
+  # The upstream workflow tests the minimum PHP of composer.json; this job
+  # tests the PHP version of the instance, written in .github/fork/php-version,
+  # with the same database.
+  tests:
+    runs-on: ubuntu-latest
+
+    services:
+        mysql:
+            image: mysql:8.0
+            env:
+                MYSQL_DATABASE: agorakit_testing
+                MYSQL_ROOT_PASSWORD: testrootpass
+            ports:
+                - 3306:3306
+            options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      id: setup-php
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version-file: .github/fork/php-version
+
+    - name: Show the PHP version
+      run: php -v
+
+    - name: Copy .env
+      run: php -r "file_exists('.env') || copy('.env.ci', '.env');"
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Generate key
+      run: php artisan key:generate
+
+    - name: Directory permissions
+      run: chmod -R 777 storage bootstrap/cache
+
+    - name: Run test suite
+      run: composer run-script test
