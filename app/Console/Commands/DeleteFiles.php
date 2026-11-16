@@ -14,7 +14,7 @@ class DeleteFiles extends Command
      * @var string
      */
     protected $signature = 'agorakit:deletefiles
-  {{--force : force confirmation of deletion}}';
+  {--force : force confirmation of deletion}';
 
     /**
      * The console command description.
