@@ -30,6 +30,71 @@ $checkItem = function (array $check) use ($e, $t, $statusNames): string {
 </div>
 
 <div class="card">
+    <h2><?= $e($t('Updating Agorakit')) ?></h2>
+    <?php if ($update['installed'] !== null): ?>
+        <p><?= $e($t('Installed version: :version', ['version' => $update['installed']])) ?></p>
+    <?php endif; ?>
+    <?php if ($update['maintenance']): ?>
+        <div class="flash warning" role="status"><?= $e($t('The site is in maintenance: visitors get an error page until you lock this page.')) ?></div>
+    <?php endif; ?>
+
+    <?php if ($update['state'] !== null && $update['state']['applied']): ?>
+        <ul class="checks">
+            <li>
+                <span class="status ok"><?= $e($t('OK')) ?></span>
+                <?= $e($t('Version :tag is installed.', ['tag' => $update['state']['tag']])) ?>
+            </li>
+        </ul>
+        <p><?= $e($t('Run the migrations below if there are any, then lock this page: the site goes back online.')) ?></p>
+        <p class="muted"><?= $e($t('The previous version is kept in storage/framework/update/previous until the next update.')) ?></p>
+    <?php elseif ($update['state'] !== null): ?>
+        <p><?= $e($t('Version :tag is downloaded and checked. It needs PHP :php or later; this server runs PHP :current.', ['tag' => $update['state']['tag'], 'php' => $update['state']['php'], 'current' => PHP_VERSION])) ?></p>
+        <p><?= $e($t('Installing puts the site in maintenance, then replaces the code of Agorakit in a few seconds. The .env file, the storage folder (uploaded files, sessions, logs) and every file the release does not contain stay as they are.')) ?></p>
+        <p class="muted"><?= $e($t('For an upgrade, make a copy of the database first, from the control panel of your host.')) ?></p>
+        <form method="post" action="<?= $e($self) ?>" style="display: inline">
+            <input type="hidden" name="_token" value="<?= $e($token) ?>">
+            <input type="hidden" name="action" value="update-install">
+            <button type="submit"><?= $e($t('Install version :tag', ['tag' => $update['state']['tag']])) ?></button>
+        </form>
+        <form method="post" action="<?= $e($self) ?>" style="display: inline">
+            <input type="hidden" name="_token" value="<?= $e($token) ?>">
+            <input type="hidden" name="action" value="update-cancel">
+            <button type="submit" class="secondary"><?= $e($t('Cancel')) ?></button>
+        </form>
+    <?php elseif ($update['unavailable'] !== null): ?>
+        <p class="muted"><?= $e($t('Automatic updates are not available: :reason', ['reason' => $update['unavailable']])) ?></p>
+    <?php else: ?>
+        <?php if ($update['check'] !== null && $update['check']['newer']): ?>
+            <p>
+                <?= $e($t('Version :tag is available.', ['tag' => $update['check']['latest']])) ?>
+                <a href="<?= $e($update['check']['notes']) ?>" target="_blank" rel="noopener noreferrer"><?= $e($t('Release notes')) ?></a>
+            </p>
+            <form method="post" action="<?= $e($self) ?>">
+                <input type="hidden" name="_token" value="<?= $e($token) ?>">
+                <input type="hidden" name="action" value="update-prepare">
+                <input type="hidden" name="tag" value="<?= $e($update['check']['latest']) ?>">
+                <button type="submit"><?= $e($t('Download and check')) ?></button>
+            </form>
+            <p class="muted"><?= $e($t('Nothing changes on the site at this step.')) ?></p>
+        <?php else: ?>
+            <?php if ($update['check'] !== null): ?>
+                <ul class="checks">
+                    <li>
+                        <span class="status ok"><?= $e($t('OK')) ?></span>
+                        <?= $e($t('Agorakit is up to date (latest release: :tag).', ['tag' => $update['check']['latest']])) ?>
+                    </li>
+                </ul>
+            <?php endif; ?>
+            <form method="post" action="<?= $e($self) ?>">
+                <input type="hidden" name="_token" value="<?= $e($token) ?>">
+                <input type="hidden" name="action" value="update-check">
+                <button type="submit"><?= $e($t('Check for updates')) ?></button>
+            </form>
+        <?php endif; ?>
+    <?php endif; ?>
+</div>
+
+<div class="card">
     <h2><?= $e($t('Configuration')) ?></h2>
     <?php if (!$configured): ?>
         <p><?= $e($t('There is no .env file yet: set the options of the site, of the database and of emails.')) ?></p>

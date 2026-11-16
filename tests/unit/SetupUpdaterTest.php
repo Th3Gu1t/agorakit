@@ -2,7 +2,10 @@
 
 namespace Tests;
 
+use App\Setup\EnvironmentFile;
 use App\Setup\HttpClient;
+use App\Setup\SetupGuard;
+use App\Setup\SetupPage;
 use App\Setup\Updater;
 use App\Setup\UpdateException;
 use FilesystemIterator;
@@ -12,7 +15,8 @@ use RecursiveIteratorIterator;
 use ZipArchive;
 
 /**
- * The update of the code, on a fake installation and fake GitHub releases.
+ * The update of the code from the setup page, on a fake installation and fake
+ * GitHub releases.
  */
 class SetupUpdaterTest extends TestCase
 {
@@ -241,6 +245,66 @@ class SetupUpdaterTest extends TestCase
         $this->assertFileExists($this->install . '/app/New.php');
     }
 
+    public function testSetupPageDrivesTheUpdate()
+    {
+        $this->release('v1.0-fork.2');
+        $session = [];
+        $page = $this->page($session);
+        $get = fn () => $page()->handle('GET', [], [], ['SCRIPT_NAME' => '/setup.php', 'HTTP_HOST' => 'agora.test']);
+        $post = function (array $form) use ($page, &$session) {
+            return $page()->handle('POST', [], $form + ['_token' => $session['csrf']], ['SCRIPT_NAME' => '/setup.php']);
+        };
+
+        $get();
+        $post(['action' => 'key', 'key' => trim(file_get_contents($this->dir . '/setup.key'))]);
+        $this->assertStringContainsString('Installed version: v1.0-fork.1', $get()->body);
+
+        $this->assertSame(303, $post(['action' => 'update-check'])->status);
+        $body = $get()->body;
+        $this->assertStringContainsString('Version v1.0-fork.2 is available.', $body);
+        $this->assertStringContainsString(self::REPOSITORY . '/releases/tag/v1.0-fork.2', $body);
+
+        // only the release that was found can be prepared
+        $post(['action' => 'update-prepare', 'tag' => 'v9.9-fork.1']);
+        $this->assertNull($this->updater()->state());
+
+        $post(['action' => 'update-prepare', 'tag' => 'v1.0-fork.2']);
+        $body = $get()->body;
+        $this->assertStringContainsString('Version v1.0-fork.2 is downloaded and checked.', $body);
+        $this->assertStringContainsString('Install version v1.0-fork.2', $body);
+
+        $post(['action' => 'update-install']);
+        $body = $get()->body;
+        $this->assertStringContainsString('Version v1.0-fork.2 is installed.', $body);
+        $this->assertStringContainsString('The site is in maintenance', $body);
+        $this->assertFileExists($this->install . '/app/New.php');
+
+        $this->assertStringContainsString('setup.lock', $post(['action' => 'lock'])->body);
+        $this->assertFalse($this->updater()->inMaintenance());
+        $this->assertFileExists($this->install . '/storage/framework/update/previous/app/Old.php');
+    }
+
+    public function testSetupPageShowsWhyAReleaseIsRefused()
+    {
+        $this->release('v1.0-fork.2');
+        file_put_contents($this->releases . '/agorakit-v1.0-fork.2.zip.sha256', str_repeat('0', 64) . "  agorakit-v1.0-fork.2.zip\n");
+        $session = [];
+        $page = $this->page($session);
+        $post = function (array $form) use ($page, &$session) {
+            return $page()->handle('POST', [], $form + ['_token' => $session['csrf']], ['SCRIPT_NAME' => '/setup.php']);
+        };
+        // the page in French, from the first request on
+        $page()->handle('GET', ['lang' => 'fr'], [], ['SCRIPT_NAME' => '/setup.php']);
+        $post(['action' => 'key', 'key' => trim(file_get_contents($this->dir . '/setup.key'))]);
+        $post(['action' => 'update-check']);
+        $post(['action' => 'update-prepare', 'tag' => 'v1.0-fork.2']);
+
+        $body = $page()->handle('GET', [], [], ['SCRIPT_NAME' => '/setup.php'])->body;
+
+        $this->assertStringContainsString("L&#039;archive ne correspond pas à sa somme de contrôle", $body);
+        $this->assertStringContainsString('Télécharger et vérifier', $body);
+    }
+
     public function testPreparedUpdateCanBeCancelled()
     {
         $this->release('v1.0-fork.2');
@@ -252,6 +316,23 @@ class SetupUpdaterTest extends TestCase
         $this->assertNull($updater->state());
         $this->assertDirectoryDoesNotExist($this->install . '/storage/framework/update/staging');
         $this->assertFileExists($this->install . '/app/Old.php');
+    }
+
+    /**
+     * A setup page on the fake installation; each call answers one request, with the same session.
+     */
+    private function page(array &$session): \Closure
+    {
+        return function () use (&$session): SetupPage {
+            return new SetupPage(
+                dirname(__DIR__, 2),
+                new SetupGuard($this->dir . '/setup.lock', $this->dir . '/setup.key'),
+                new EnvironmentFile($this->dir . '/.env'),
+                $session,
+                null,
+                $this->updater()
+            );
+        };
     }
 
     /**
