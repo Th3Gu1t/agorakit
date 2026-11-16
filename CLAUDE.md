@@ -174,8 +174,9 @@ upstream file can conflict at the next sync.
     group (`PollController::checkPoll`).
 
 - **Setup page** (`public/setup.php`), for hosts without SSH: checks the
-  server, writes `.env` from a form (with `APP_KEY`), runs the migrations,
-  creates the first administrator and clears the caches, all from a browser.
+  server, writes `.env` from a form (with `APP_KEY`), updates the code to the
+  latest release, runs the migrations, creates the first administrator and
+  clears the caches, all from a browser.
   - Own files: `app/Setup/`, `resources/views/setup/` (plain PHP, since the
     page runs before Laravel is configured), `tests/unit/Setup*Test.php`,
     `tests/integration/SetupTest.php`.
@@ -184,6 +185,14 @@ upstream file can conflict at the next sync.
     this guard: the page can rewrite the configuration and the database.
   - The form follows `.env.example`: a new option there must be added to
     `App\Setup\EnvironmentSchema`, which a test enforces.
+  - The update (`App\Setup\Updater`) downloads the latest release of the
+    repository named in `VERSION` into `storage/framework/update`, checks it
+    (SHA-256, paths, version, PHP version needed), then swaps each entry of
+    the release into place by renaming, the site in maintenance meanwhile.
+    The root folder and `public/` are merged entry by entry, `storage/` only
+    receives what it lacks, and nothing the release does not ship is touched.
+    A new top-level folder that holds data of the site, written to on the
+    server, must be added to `Updater::DATA`, or the update would replace it.
 - **Scheduled tasks without a crontab** (`public/cron.php`,
   `App\Cron\ScheduleRunner`): shared hosts cannot run `schedule:run` every
   minute (OVH web hosting: a PHP file, no arguments, once an hour at a minute
@@ -266,8 +275,10 @@ neither git, Composer nor Artisan can run there.
   release with the archive and its SHA-256 checksum.
 - Tag only a commit of `main` whose CI is green, and only when the maintainer
   asks for a release: a release is what gets deployed.
-- On the host, the archive is unpacked over the installation, then
-  `setup.lock` is deleted and `/setup.php` runs the migrations and clears the
+- On the host, `setup.lock` is deleted and the update card of `/setup.php`
+  installs the latest release (from `v1.11.4-fork.2` on; older installations
+  are updated by hand once). Otherwise the archive is unpacked over the
+  installation. Then `/setup.php` runs the migrations and clears the
   caches (see "Features of this fork").
 - Try the build locally: `.github/fork/build-release.sh test HEAD /tmp/release`
   and `.github/fork/release-notes.sh test HEAD`. A pull request that changes

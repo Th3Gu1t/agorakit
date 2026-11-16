@@ -45,6 +45,7 @@ class SetupPage
     /**
      * @param array<string, mixed> $session
      * @param Closure(): Kernel $console starts Laravel with the .env file and returns its console kernel
+     * @param Updater|null $updater updates the code; by default, from the GitHub releases
      */
     public function __construct(
         private string $basePath,
@@ -52,6 +53,7 @@ class SetupPage
         private EnvironmentFile $environment,
         array &$session,
         private ?Closure $console = null,
+        private ?Updater $updater = null,
     ) {
         $this->session = &$session;
     }
@@ -100,6 +102,10 @@ class SetupPage
                 'environment' => $this->saveEnvironment((array) ($post['env'] ?? [])),
                 'migrate' => $this->migrate(),
                 'admin' => $this->createAdmin($post),
+                'update-check' => $this->checkUpdate(),
+                'update-prepare' => $this->prepareUpdate((string) ($post['tag'] ?? '')),
+                'update-install' => $this->installUpdate(),
+                'update-cancel' => $this->cancelUpdate(),
                 'lock' => $this->lock(),
                 default => $this->redirect(),
             };
@@ -145,6 +151,7 @@ class SetupPage
             : null;
 
         return $this->render('overview', [
+            'update' => $this->updateStatus(),
             'checks' => (new Requirements($this->basePath, $this->server))->check(),
             'configured' => $configured,
             'databaseError' => $databaseError,
@@ -271,6 +278,120 @@ class SetupPage
     }
 
     /**
+     * Where the update of the code stands, for the overview.
+     *
+     * @return array<string, mixed>
+     */
+    private function updateStatus(): array
+    {
+        $updater = $this->updater();
+        $unavailable = $updater->unavailable();
+
+        return [
+            'installed' => $updater->installed()['version'] ?? null,
+            'unavailable' => $unavailable ? $this->describe($unavailable) : null,
+            'state' => $updater->state(),
+            'check' => $this->session['update_check'] ?? null,
+            'maintenance' => $updater->inMaintenance(),
+        ];
+    }
+
+    /**
+     * Asks GitHub for the latest release.
+     */
+    private function checkUpdate(): SetupResponse
+    {
+        $updater = $this->updater();
+        try {
+            if ($reason = $updater->unavailable()) {
+                throw $reason;
+            }
+            $tag = $updater->latest();
+            $this->session['update_check'] = [
+                'latest' => $tag,
+                'newer' => $updater->isNewer($tag),
+                'notes' => $updater->notesUrl($tag),
+            ];
+        } catch (UpdateException $e) {
+            unset($this->session['update_check']);
+            $this->flashText('error', $this->describe($e));
+        }
+
+        return $this->redirect();
+    }
+
+    /**
+     * Downloads, unpacks and checks the release found by checkUpdate().
+     */
+    private function prepareUpdate(string $tag): SetupResponse
+    {
+        if ($tag === '' || $tag !== ($this->session['update_check']['latest'] ?? null)) {
+            return $this->redirect();
+        }
+
+        try {
+            $this->updater()->prepare($tag);
+            $this->flash('success', 'Version :tag is downloaded and checked.', ['tag' => $tag]);
+        } catch (UpdateException $e) {
+            $this->flashText('error', $this->describe($e));
+        }
+
+        return $this->redirect();
+    }
+
+    /**
+     * Moves the prepared release into place.
+     *
+     * The code of the page itself is replaced meanwhile: what the answer needs is
+     * loaded and translated first, and Laravel is not started.
+     */
+    private function installUpdate(): SetupResponse
+    {
+        $state = $this->updater()->state();
+        if ($state === null || $state['applied']) {
+            return $this->redirect();
+        }
+        $success = $this->t('Version :tag is installed.', ['tag' => $state['tag']]);
+        $response = $this->redirect();
+
+        try {
+            $this->updater()->apply();
+            $this->flashText('success', $success);
+        } catch (UpdateException $e) {
+            $this->flashText('error', $this->describe($e));
+        }
+        unset($this->session['update_check']);
+
+        return $response;
+    }
+
+    private function cancelUpdate(): SetupResponse
+    {
+        $this->updater()->discard();
+        $this->flash('success', 'The update was cancelled.');
+
+        return $this->redirect();
+    }
+
+    private function updater(): Updater
+    {
+        return $this->updater ??= new Updater($this->basePath, new HttpClient());
+    }
+
+    /**
+     * The message of an update error, translated, with its cause.
+     */
+    private function describe(UpdateException $e): string
+    {
+        $replace = array_map(
+            fn ($value) => $value instanceof UpdateException ? $this->describe($value) : (string) $value,
+            $e->replace
+        );
+
+        return $this->t($e->getMessage(), $replace);
+    }
+
+    /**
      * The form that writes the .env file.
      *
      * @param array<string, string> $values values to show instead of the current ones
@@ -342,7 +463,15 @@ class SetupPage
      */
     private function flash(string $type, string $message, array $replace = []): void
     {
-        $this->session['flash'][] = ['type' => $type, 'text' => $this->t($message, $replace)];
+        $this->flashText($type, $this->t($message, $replace));
+    }
+
+    /**
+     * A message for the next page, already translated.
+     */
+    private function flashText(string $type, string $text): void
+    {
+        $this->session['flash'][] = ['type' => $type, 'text' => $text];
     }
 
     private function checkKey(array $post): SetupResponse
@@ -372,6 +501,9 @@ class SetupPage
                 // locking matters more than clearing the caches
             }
         }
+
+        // after an update: back online, downloads deleted
+        $this->updater()->finish();
 
         try {
             $this->guard->lock();
