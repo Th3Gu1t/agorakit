@@ -65,8 +65,8 @@ so the change stays proposable.
 4. **Before pushing**: run the tests and `.github/fork/check-commits.sh`.
 5. **Pull request** against `main` of the fork, following the template, with
    `Closes #<issue>`. Open it as a draft while it is not ready.
-6. **CI** must be green: `PHP Composer` (tests) and `Fork checks` (commits
-   and coding standard).
+6. **CI** must be green: `PHP Composer` (tests on the minimum PHP) and
+   `Fork checks` (commits, coding standard, tests on the PHP of the instance).
 7. **Merge** with a merge commit:
    `gh pr merge <number> --repo Th3Gu1t/agorakit --merge`. Merge pull
    requests that depend on another one after it.
@@ -123,6 +123,10 @@ the pull request title, which becomes the subject of the merge commit.
 
 - Laravel 12 on PHP `^8.3`. Composer pins the platform to PHP 8.3 and the CI
   runs 8.3: do not use newer syntax, even if the local PHP is more recent.
+- The instance runs another PHP version, written in `.github/fork/php-version`
+  (8.5 as of November 2026): the release archive is built with it and the
+  fork checks run the tests with it too. Update that file when the PHP
+  version of the host changes.
 - MySQL or MariaDB. SQLite is not supported.
 - A hypermedia application: Blade views with [Unpoly](https://unpoly.com),
   Tabler and Bootstrap styles, flat CSS and JavaScript in `public/`. There is
