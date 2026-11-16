@@ -49,6 +49,24 @@ class SetupRequirementsTest extends TestCase
         $this->assertSame(Requirements::OK, $this->statusOf([], 'PHP extension :extension', ['extension' => 'gd']));
     }
 
+    public function testImapExtensionIsCheckedOncePostingByEmailIsSetUp()
+    {
+        $present = 'PHP extension imap, which posting by email needs';
+        $missing = 'PHP extension imap is missing: posting by email is set up but cannot work. '
+            . 'Choose a PHP version that has it in the control panel of your host.';
+
+        file_put_contents($this->dir . '/.env', "INBOX_DRIVER=null\n");
+        $this->assertNull($this->statusOf([], $present));
+        $this->assertNull($this->statusOf([], $missing));
+
+        file_put_contents($this->dir . '/.env', "INBOX_DRIVER=imap\nINBOX_HOST=imap.example.org\n");
+        if (extension_loaded('imap')) {
+            $this->assertSame(Requirements::OK, $this->statusOf([], $present));
+        } else {
+            $this->assertSame(Requirements::WARNING, $this->statusOf([], $missing));
+        }
+    }
+
     public function testFoldersThatCannotBeWrittenAreErrors()
     {
         $requirements = new Requirements($this->dir, ['DOCUMENT_ROOT' => $this->dir . '/public', 'HTTPS' => 'on']);
