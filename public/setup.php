@@ -11,9 +11,9 @@
 $basePath = dirname(__DIR__);
 
 // Checked first, in plain words: the dependencies would fail with less helpful errors.
-if (PHP_VERSION_ID < 80200) {
+if (PHP_VERSION_ID < 80300) {
     http_response_code(500);
-    exit('Agorakit needs PHP 8.2 or later; this server runs PHP ' . PHP_VERSION . '. '
+    exit('Agorakit needs PHP 8.3 or later; this server runs PHP ' . PHP_VERSION . '. '
         . 'Choose a newer PHP version in the control panel of your host '
         . '(on OVH web hosting: the global PHP version, or app.engine.version in the .ovhconfig file).');
 }

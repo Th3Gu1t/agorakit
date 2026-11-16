@@ -208,7 +208,7 @@ $checkItem = function (array $check) use ($e, $t, $statusNames): string {
     <?php endif; ?>
 
     <h3><?= $e($t('The scheduled tasks of your host')) ?></h3>
-    <p><?= $e($t('For instance on OVH web hosting, in "Scheduled tasks - CRON": run this file every hour, with PHP 8.2 or later, giving its path from the root of your FTP space (such as www/agorakit/public/cron.php). Summaries and reminders may then leave up to an hour late.')) ?></p>
+    <p><?= $e($t('For instance on OVH web hosting, in "Scheduled tasks - CRON": run this file every hour, with PHP 8.3 or later, giving its path from the root of your FTP space (such as www/agorakit/public/cron.php). Summaries and reminders may then leave up to an hour late.')) ?></p>
     <p><code><?= $e($cronFile) ?></code></p>
 
     <h3><?= $e($t('A crontab')) ?></h3>

@@ -347,7 +347,7 @@ class User extends Authenticatable
     /**
      * Returns all memberships
      */
-    public function memberships()
+    public function memberships(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Membership::class);
     }

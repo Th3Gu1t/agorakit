@@ -113,7 +113,7 @@ class CalendarEvent extends Model
     /**
      * The users attending this event.
      */
-    public function attending()
+    public function attending(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->belongsToMany(User::class)->wherePivot('status', '10');
     }
@@ -121,7 +121,7 @@ class CalendarEvent extends Model
     /**
      * The users NOT attending this event.
      */
-    public function notAttending()
+    public function notAttending(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->belongsToMany(User::class)->wherePivot('status', '-10');
     }

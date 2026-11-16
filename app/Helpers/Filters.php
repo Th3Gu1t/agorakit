@@ -1,7 +1,5 @@
 <?php
 
-use Embera\Embera;
-
 /**
  * Text/html processing and filters
  * The most used ont is filter($content).
@@ -40,15 +38,6 @@ function filter($content)
     // link to d:xx discussions
     $content = highlightDiscussions($content);
 
-    // embed youtube and others
-    // we create an embera class with offline support to reduce load : https://github.com/mpratt/Embera#offline-support
-    $config = [
-        'fake_responses' => Embera::ONLY_FAKE_RESPONSES,
-        'responsive' => true
-    ];
-
-    $embera = new Embera($config);
-    $content = $embera->autoEmbed($content);
 
     // link to urls
     $linkify = new \Misd\Linkify\Linkify();

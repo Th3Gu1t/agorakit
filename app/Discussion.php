@@ -109,7 +109,7 @@ class Discussion extends Model
         return $this->belongsTo(\App\User::class)->withTrashed();
     }
 
-    public function comments()
+    public function comments(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Comment::class);
     }

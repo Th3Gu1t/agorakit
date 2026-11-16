@@ -38,9 +38,9 @@ readonly DEV_ONLY=(
 # composer.json only suggests ddeboer/imap, since the package requires the IMAP
 # extension of PHP: "composer install" leaves it out. Hosts without SSH cannot
 # add it, and many have the extension (OVH web hosting does), so the archive
-# carries it. 1.19 is the last version that supports PHP 8.2, the platform
-# composer.json sets. Without the extension, post by email stays unavailable
-# and the rest of Agorakit is unaffected.
+# carries it. 1.19 supports PHP 8.2 and 8.3, and was tried with Agorakit on
+# PHP 8.3 and 8.5 (with the IMAP extension from PECL). Without the extension,
+# post by email stays unavailable and the rest of Agorakit is unaffected.
 readonly IMAP_PACKAGE=ddeboer/imap:1.19.0
 
 root=$(git rev-parse --show-toplevel)

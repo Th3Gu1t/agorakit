@@ -76,8 +76,8 @@ class Requirements
     private function php(): array
     {
         return [
-            'status' => PHP_VERSION_ID >= 80200 ? self::OK : self::ERROR,
-            'label' => 'PHP :version (8.2 or later is needed)',
+            'status' => PHP_VERSION_ID >= 80300 ? self::OK : self::ERROR,
+            'label' => 'PHP :version (8.3 or later is needed)',
             'replace' => ['version' => PHP_VERSION],
         ];
     }
