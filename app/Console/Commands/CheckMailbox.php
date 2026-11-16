@@ -85,14 +85,21 @@ class CheckMailbox extends Command
      */
     public function handle()
     {
-        if (!function_exists('imap_open')) {
-                $this->info('IMAP extension must be enabled');
+        // INBOX_DRIVER=null turns the feature off, as for the inbox addresses of groups and discussions
+        if (!config('agorakit.inbox_driver') || !config('agorakit.inbox_host')) {
+            $this->info('Email checking disabled in settings');
             return false;
         }
 
-        if (!config('agorakit.inbox_host')) {
-            $this->info('Email checking disabled in settings');
-            return false;
+        // composer.json only suggests this package, so that installs without the IMAP extension work
+        if (!class_exists(Server::class)) {
+            $this->error('Email checking needs the ddeboer/imap package: run composer require ddeboer/imap');
+            return self::FAILURE;
+        }
+
+        if (!function_exists('imap_open')) {
+            $this->error('Email checking needs the IMAP extension of PHP');
+            return self::FAILURE;
         }
 
         $this->dry = $this->option('dry');
