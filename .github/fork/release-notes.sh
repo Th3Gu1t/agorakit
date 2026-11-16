@@ -52,7 +52,15 @@ section 'Corrections' -E '^fix(\(|!|:)'
 section 'Autres changements' -vE '^(feat|fix)(\(|!|:)'
 
 cat << EOF
-## Installer ou mettre à jour
+## Mettre à jour depuis le site
+
+Pour une instance en \`v1.11.4-fork.2\` ou plus récente :
+
+1. Supprimez le fichier \`setup.lock\` à la racine d'Agorakit, par FTP ou avec le gestionnaire de fichiers de l'hébergeur.
+2. Ouvrez \`/setup.php\` sur le site, puis, dans « Mise à jour d'Agorakit » : « Rechercher une mise à jour », « Télécharger et vérifier », puis « Installer la version ».
+3. Lancez les migrations s'il y en a, puis verrouillez la page : le site revient en ligne.
+
+## Installer, ou mettre à jour une version plus ancienne
 
 1. Téléchargez \`agorakit-$version.zip\` ci-dessous et décompressez-le.
 2. Envoyez le contenu du dossier \`agorakit-$version\` sur l'hébergement, par-dessus l'installation existante s'il y en a une : le fichier \`.env\` et les fichiers des groupes, dans \`storage\`, sont conservés.
